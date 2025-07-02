@@ -11,9 +11,9 @@ at_detector = Detector(
     nthreads=1,
     quad_decimate=0.75,
     quad_sigma=0.0,
-    refine_edges=1,
+    refine_edges=True,
     decode_sharpening=0.75,
-    debug=0
+    debug=False
 )
 
 while True:
@@ -49,7 +49,7 @@ while True:
         cv2.putText(frame, str(tag_id), (ptA[0], ptA[1] - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-        print(f"Detected AprilTag ID: {tag_id}")
+        print(f"Detected ID: {r.tag_id}, Family: {r.tag_family}")
 
     # Show result
     cv2.imshow("AprilTag Detection", frame)

@@ -6,8 +6,18 @@ import numpy as np
 print("OpenCV version:", cv2.__version__)
 
 # Initialize AprilTag detector (default uses tag36h11 family)
-at_detector = Detector(
-    families='tag25h9 tag36h11',
+at_detector_25 = Detector(
+    families='tag25h9',
+    nthreads=1,
+    quad_decimate=1.0,
+    quad_sigma=0.0,
+    refine_edges=1,
+    decode_sharpening=0.5,
+    debug=0
+)
+
+at_detector_36 = Detector(
+    families='tag36h11',
     nthreads=1,
     quad_decimate=1.0,
     quad_sigma=0.0,
@@ -50,7 +60,15 @@ tool_map = {
     20: "Rongeur",
     21: "Periosteal Elevator",
     22: "Mallet",
-    23: "Chisel"
+    23: "Chisel",
+    24: "Bone File",
+    25: "Gauze Pad",
+    26: "Sponge Stick",
+    27: "Laparoscope",
+    28: "Trocar",
+    29: "Veress Needle",
+    30: "Endoscopic Grasper",
+    31: "Light Source"
     # et cetera
 }
 
@@ -66,6 +84,7 @@ while True:
     # Detect markers
     all_corners = []
     all_ids = []
+    april_ids = []
     all_rejected = []
 
     # List of dictionaries you want to use
@@ -80,10 +99,10 @@ while True:
         aruco_dict = aruco.Dictionary_get(dict_id)
         try:
             # AprilTags first
-            results = at_detector.detect(gray)
+            results_25 = at_detector_25.detect(gray)
 
             # Drawing
-            for r in results:
+            for r in results_25:
                 (ptA, ptB, ptC, ptD) = r.corners
                 ptA = tuple(map(int, ptA))
                 ptB = tuple(map(int, ptB))
@@ -96,8 +115,8 @@ while True:
                 cv2.polylines(frame, [pts], isClosed=True, color=(0, 255, 0), thickness=2)
 
                 # Draw tag center
-                # (cX, cY) = tuple(map(int, r.center))
-                # cv2.circle(frame, (cX, cY), 5, (0, 0, 255), -1)
+                (cX, cY) = tuple(map(int, r.center))
+                cv2.circle(frame, (cX, cY), 5, (0, 0, 255), -1)
 
                 # Draw tag ID
                 tag_id = r.tag_id
@@ -110,11 +129,44 @@ while True:
                     (0, 255, 0), 
                     2
                 )
+                
+                april_ids.append(tag_id)
 
-                print(f"Detected AprilTag ID: {tag_id}")
+            results_36 = at_detector_36.detect(gray)
+
+            # Drawing
+            for r in results_36:
+                (ptA, ptB, ptC, ptD) = r.corners
+                ptA = tuple(map(int, ptA))
+                ptB = tuple(map(int, ptB))
+                ptC = tuple(map(int, ptC))
+                ptD = tuple(map(int, ptD))
+
+                # Draw bounding box
+                # Using np for drawing with polylines (more compact)
+                pts = np.array([ptA, ptB, ptC, ptD], dtype=np.int32).reshape((-1, 1, 2))
+                cv2.polylines(frame, [pts], isClosed=True, color=(0, 255, 0), thickness=2)
+
+                # Draw tag center
+                (cX, cY) = tuple(map(int, r.center))
+                cv2.circle(frame, (cX, cY), 5, (0, 0, 255), -1)
+
+                # Draw tag ID
+                tag_id = r.tag_id
+                cv2.putText(
+                    frame, 
+                    str(tag_id), 
+                    (ptA[0], ptA[1] - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 
+                    0.5, 
+                    (0, 255, 0), 
+                    2
+                )
+                
+                april_ids.append(tag_id)
             
             corners, ids, rejected = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
-
+            
             if ids is not None:
                 all_corners.extend(corners)
                 all_ids.append(ids)
@@ -127,14 +179,24 @@ while True:
     # Concatenate all ids into one numpy array
     if all_ids and len(all_ids) > 0:
         all_ids = np.concatenate(all_ids)
+        for id in all_ids:
+            print(f"{id}")
     else:
         all_ids = None
     
     if all_ids is not None:
         aruco.drawDetectedMarkers(frame, all_corners, all_ids)
-        for tag_id in all_ids.flatten():
-            tool_name = tool_map.get(tag_id, str(tag_id))
-            print(f"Detected Tool: {tool_name} (Tag ID: {tag_id})")
+        print("DEBUG:")
+        print("Type of all_ids:", type(all_ids))
+        print("Sample entry:", all_ids[0])
+        print("Type of entry:", type(all_ids[0]))
+        # all_ids = all_ids.tolist()
+        # for id in april_ids:
+        #     all_ids.append(id)
+        # for tag_id in all_ids:
+        #     tag_id = tag_id[0]
+        #     tool_name = tool_map.get(tag_id, "Tool not found")
+        #     print(f"Detected Tool: {tool_name} (Tag ID: {tag_id})")
 
     cv2.imshow("Aruco Detection", frame)
 
