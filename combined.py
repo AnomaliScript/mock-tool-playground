@@ -179,24 +179,21 @@ while True:
     # Concatenate all ids into one numpy array
     if all_ids and len(all_ids) > 0:
         all_ids = np.concatenate(all_ids)
-        for id in all_ids:
-            print(f"{id}")
     else:
         all_ids = None
-    
     if all_ids is not None:
+        # Last arUco-related business
         aruco.drawDetectedMarkers(frame, all_corners, all_ids)
-        print("DEBUG:")
-        print("Type of all_ids:", type(all_ids))
-        print("Sample entry:", all_ids[0])
-        print("Type of entry:", type(all_ids[0]))
-        # all_ids = all_ids.tolist()
-        # for id in april_ids:
-        #     all_ids.append(id)
-        # for tag_id in all_ids:
-        #     tag_id = tag_id[0]
-        #     tool_name = tool_map.get(tag_id, "Tool not found")
-        #     print(f"Detected Tool: {tool_name} (Tag ID: {tag_id})")
+        
+        # Combining arUco and AprilTag ids in a normal Python list
+        all_ids = all_ids.tolist()
+        for id in april_ids:
+            all_ids.append(id)
+        # Manual Flattening
+        all_ids = [x[0] if isinstance(x, (list, np.ndarray)) else x for x in all_ids]
+        for tag_id in all_ids:
+            tool_name = tool_map.get(tag_id, "Tool not found")
+            print(f"Detected Tool: {tool_name} (Tag ID: {tag_id})")
 
     cv2.imshow("Aruco Detection", frame)
 

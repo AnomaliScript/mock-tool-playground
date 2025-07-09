@@ -7,7 +7,7 @@ cap = cv2.VideoCapture(0)
 
 # Initialize AprilTag detector (default uses tag36h11 family)
 at_detector = Detector(
-    families='tag25h9 tag36h11',
+    families='tag36h11',
     nthreads=1,
     quad_decimate=0.75,
     quad_sigma=0.0,
