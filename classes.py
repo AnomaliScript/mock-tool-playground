@@ -84,14 +84,21 @@ class ToolAdapter:
             print(f"<detach_tool> Tool '{tool_id}' not found")
 
     def move_tool_to(self, tool_id, pose, slots_obj):
-        if tool_id in self.attached:
-            slot_id = slots_obj.find_closest_slot(pose)
+        if tool_id not in self.attached:
+            print(f"<move_tool_to> Tool '{tool_id}' not attached")
+            return
+
+        slot_id = slots_obj.find_closest_slot(pose)
+        if slot_id is None:
+            print(f"<move_tool_to> No matching slot for pose {pose}")
+            return
+
+        self.attached[tool_id]["slot"] = slot_id
+        self.attached[tool_id]["pose"] = slots_obj.slot_positions[slot_id]
 
             # Moving Tool Code here
             
-            print(f"<move_tool_to> Tool '{tool_id}' moved to slot {slot_id}")
-        else:
-            print(f"<move_tool_to> Tool '{tool_id}' not attached")
+        print(f"<move_tool_to> Tool '{tool_id}' moved to slot {slot_id}")
 
     # Depreciated probably
     # def get_tool_status(self, tool_id):

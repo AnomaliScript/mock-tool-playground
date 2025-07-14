@@ -49,9 +49,8 @@ def view_shown_tags(tags_param):
     
 cap = cv2.VideoCapture(0)
 
-# Dictionary saving tags with their theoretical respective positions
-tag_positions = {}
 # Dictionary saving tags with their actual respective positions
+# This is useful to temporariy store the tag's positions until they are handed off to their calss attributes and whathot
 true_positions = {}
 
 while True:
@@ -71,7 +70,7 @@ while True:
         )
 
         rounded_pos = np.round(tvec.ravel(), 2)
-        tag_positions[tag.tag_id], true_positions[tag.tag_id] = rounded_pos
+        true_positions[tag.tag_id] = rounded_pos
 
         if success:
             cv2.drawFrameAxes(frame, 
@@ -105,9 +104,9 @@ while True:
             print("Please type the number corresponding to the tool.")
             tool_id = input("Which tool would you like to attach?")
 
-        new_pos = adapter.attach_tool(tool_id, tag_positions[tool_id], None, slots)
+        new_pos = adapter.attach_tool(tool_id, true_positions[tool_id], None, slots)
         if isinstance(new_pos, (tuple, np.ndarray)):
-            tag_positions[tool_id] = new_pos
+            true_positions[tool_id] = new_pos
         else:
             print(f"{new_pos}")
     # detach
@@ -121,7 +120,7 @@ while True:
             print("Please type the number corresponding to the tool.")
             tool_id = input("Which tool would you like to detach?")
 
-        adapter.detach_tool(tool_id, tag_positions[tool_id])
+        adapter.detach_tool(tool_id, true_positions[tool_id])
     # move
     if cv2.waitKey(1) & 0xFF == ord('m'):
         # To be replaced
@@ -135,7 +134,7 @@ while True:
 
         adapter.move_tool_to(tool_id, rounded_pos)
         # Saves the actual position (true_position) of the tag as its tag_position
-        tag_positions[tool_id] = true_positions[tool_id]
+        true_positions[tool_id] = true_positions[tool_id]
         
     # get position
     if cv2.waitKey(1) & 0xFF == ord('p'):
