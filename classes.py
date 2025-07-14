@@ -23,6 +23,7 @@ class Slots:
             pose = np.array([x, y, z, 0.0, 0.0, 0.0])
             self.slot_positions[i] = pose
     
+    # math
     def find_closest_slot(self, input_pose, threshold=0.01):
         best_match = None
         best_dist = float("inf")
@@ -41,8 +42,7 @@ class ToolAdapter:
         self.attached = {
             # For each tool_id:
             # "pose": {1, 2, 3, 4, 5, 6}
-            # This ^ will be replaced by "standardized_pose" later
-            # "standardized_pose" : slots.slot_positions[int]
+            # "slot" : slots.slot_positions[int]
             # "name": "scalpel"
         }
         self.available = available_tools
@@ -51,22 +51,25 @@ class ToolAdapter:
         #     
         # }
 
-    def attach_tool(self, chosen_id, pose, target_pos):
+    def attach_tool(self, chosen_id, pose, target_pos, slots_obj):
         # tool_id is an integer, and pose has six coords
         # chosen_id is ths id of the tool in the self.available dict
         # Has to return a string if there is an error
         if len(self.attached) >= self.limit:
             return "Max limit reached."
         tool_id = len(self.attached)
+        
+        slot_id = slots_obj.find_closest_slot(pose)
         self.attached[tool_id] = {
             "pose": pose,
+            "slot": slot_id,
             "name": self.available[chosen_id]
         }
 
         # Attaching Tool Code Here
         # attach(target_pos)
 
-        print(f"<attach_tool> Tool '{tool_id}' attached at pose {pose}")
+        print(f"<attach_tool> Tool '{tool_id}' attached at slot {self.attached[tool_id]["pose"]}")
         return pose
 
     def detach_tool(self, tool_id, target_pos):
@@ -82,12 +85,11 @@ class ToolAdapter:
 
     def move_tool_to(self, tool_id, pose, slots_obj):
         if tool_id in self.attached:
-            self.attached[tool_id]["pose"] = pose
+            slot_id = slots_obj.find_closest_slot(pose)
 
             # Moving Tool Code here
-            slot_id = slots_obj.find_closest_slot(pose)
             
-            print(f"<move_tool_to> Tool '{tool_id}' moved to pose {pose}")
+            print(f"<move_tool_to> Tool '{tool_id}' moved to slot {slot_id}")
         else:
             print(f"<move_tool_to> Tool '{tool_id}' not attached")
 

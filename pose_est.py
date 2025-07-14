@@ -105,7 +105,7 @@ while True:
             print("Please type the number corresponding to the tool.")
             tool_id = input("Which tool would you like to attach?")
 
-        new_pos = adapter.attach_tool(tool_id, tag_positions[tool_id], None)
+        new_pos = adapter.attach_tool(tool_id, tag_positions[tool_id], None, slots)
         if isinstance(new_pos, (tuple, np.ndarray)):
             tag_positions[tool_id] = new_pos
         else:
