@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from pupil_apriltags import Detector
-from tool_adapter import ToolAdapter
+from classes import ToolAdapter, Slots
 
 # Load calibration
 data = np.load("camera_calibration.npz")
@@ -26,7 +26,10 @@ tool_map = {
     # ... add more if needed
 }
 
-adapter = ToolAdapter(tool_map)
+# Initializing first ToolAdapter class
+adapter = ToolAdapter(tool_map, 
+                      6, 
+                      None)
 
 # Initialize AprilTag detector
 at_detector = Detector(families='tag25h9')
@@ -90,39 +93,59 @@ while True:
 
     # attach
     if cv2.waitKey(1) & 0xFF == ord('a'):
+        # To be replaced
         view_shown_tags(tags)
+
         # Terminal UI :sob: (will implement dashboard-like app later)
         tool_id = input("Which tool would you like to attach?")
+
         while (tool_id.type() != int):
             print("Please type the number corresponding to the tool.")
             tool_id = input("Which tool would you like to attach?")
-            true_positions[tool_id] = adapter.attach_tool(tool_id, tag_positions[tool_id])
+
+        new_pos = adapter.attach_tool(tool_id, tag_positions[tool_id], None)
+        if isinstance(new_pos, (tuple, np.ndarray)):
+            tag_positions[tool_id] = new_pos
+        else:
+            print(f"{new_pos}")
     # detach
     if cv2.waitKey(1) & 0xFF == ord('d'):
+        # To be replaced
         view_shown_tags(tags)
+
         tool_id = input("Which tool would you like to detach?")
-        while (isinstance(tool_id, int)):
+
+        while (tool_id.type() != int):
             print("Please type the number corresponding to the tool.")
             tool_id = input("Which tool would you like to detach?")
+
         adapter.detach_tool(tool_id, tag_positions[tool_id])
     # move
     if cv2.waitKey(1) & 0xFF == ord('m'):
+        # To be replaced
         view_shown_tags(tags)
+
         tool_id = input("Which tool would you like to move?")
-        while (isinstance(tool_id, int)):
+        
+        while (tool_id.type() != int):
             print("Please type the number corresponding to the tool.")
             tool_id = input("Which tool would you like to move?")
+
         adapter.move_tool_to(tool_id, rounded_pos)
         # Saves the actual position (true_position) of the tag as its tag_position
-        true_positions[tool_id] = tag_positions[tool_id]
+        tag_positions[tool_id] = true_positions[tool_id]
         
     # get position
     if cv2.waitKey(1) & 0xFF == ord('p'):
+        # To be replaced
         view_shown_tags(tags)
+
         tool_id = input("Which tool would you like to get the position of?")
+
         while (isinstance(tool_id, int)):
             print("Please type the number corresponding to the tool.")
             tool_id = input("Which tool would you like to get the position of?")
+        
         print(f"{rounded_pos}")
     # end condition
     if cv2.waitKey(1) & 0xFF == ord('q'):
