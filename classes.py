@@ -2,7 +2,7 @@ import math
 import numpy as np
 
 class Slots: 
-    def __init__(self, center_pos, num_slots, radius=0.05):
+    def __init__(self, center_pos, num_slots, radius=0.25):
         self.pos = center_pos
         self.limit = num_slots
         self.radius = radius
@@ -22,6 +22,16 @@ class Slots:
             # Fake orientation for now (roll, pitch, yaw) all zero
             pose = np.array([x, y, z, 0.0, 0.0, 0.0])
             self.slot_positions[i] = pose
+    
+    def find_closest_slot(self, input_pose, threshold=0.01):
+        best_match = None
+        best_dist = float("inf")
+        for i, slot_pose in self.slot_positions.items():
+            dist = np.linalg.norm(input_pose[:3] - slot_pose[:3])
+            if dist < best_dist and dist <= threshold:
+                best_match = i
+                best_dist = dist
+        return best_match
 
 # Slots.slot_positions will directly feed into ToolAdapter.p_positions
 
@@ -70,12 +80,13 @@ class ToolAdapter:
         else:
             print(f"<detach_tool> Tool '{tool_id}' not found")
 
-    def move_tool_to(self, tool_id, pose, slots):
+    def move_tool_to(self, tool_id, pose, slots_obj):
         if tool_id in self.attached:
             self.attached[tool_id]["pose"] = pose
 
             # Moving Tool Code here
-
+            slot_id = slots_obj.find_closest_slot(pose)
+            
             print(f"<move_tool_to> Tool '{tool_id}' moved to pose {pose}")
         else:
             print(f"<move_tool_to> Tool '{tool_id}' not attached")

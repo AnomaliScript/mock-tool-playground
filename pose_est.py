@@ -30,6 +30,8 @@ tool_map = {
 adapter = ToolAdapter(tool_map, 
                       6, 
                       None)
+# Initializing first Slots class
+slots = Slots(num_slots=6)
 
 # Initialize AprilTag detector
 at_detector = Detector(families='tag25h9')
@@ -69,7 +71,7 @@ while True:
         )
 
         rounded_pos = np.round(tvec.ravel(), 2)
-        tag_positions[tag], true_positions[tag] = rounded_pos
+        tag_positions[tag.tag_id], true_positions[tag.tag_id] = rounded_pos
 
         if success:
             cv2.drawFrameAxes(frame, 
