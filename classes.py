@@ -33,6 +33,23 @@ class Slots:
                 best_match = i
                 best_dist = dist
         return best_match
+    
+    def set_slot_position(self, slot_id, pose):
+        # Manually set the pose of a specific slot.
+        self.slot_positions[slot_id] = pose
+    def save_to_file(self, filename):
+        # Save all slot positions to a JSON file.
+        import json
+        data = {i: pose.tolist() for i, pose in self.slot_positions.items()}
+        with open(filename, "w") as f:
+            json.dump(data, f)
+    def load_from_file(self, filename):
+        # Load slot positions from a JSON file.
+        import json
+        with open(filename, "r") as f:
+            data = json.load(f)
+        self.slot_positions = {int(i): np.array(p) for i, p in data.items()}
+
 
 # Slots.slot_positions will directly feed into ToolAdapter.p_positions
 
@@ -60,6 +77,8 @@ class ToolAdapter:
         tool_id = len(self.attached)
         
         slot_id = slots_obj.find_closest_slot(pose)
+        print(f"Slot ID: {slot_id}")
+        print(f"{self.available}")
         self.attached[tool_id] = {
             "pose": pose,
             "slot": slot_id,
@@ -69,7 +88,7 @@ class ToolAdapter:
         # Attaching Tool Code Here
         # attach(target_pos)
 
-        print(f"<attach_tool> Tool '{tool_id}' attached at slot {self.attached[tool_id]["pose"]}")
+        print(f"Tool '{tool_id}' attached at slot {self.attached[tool_id]["pose"]}")
         return pose
 
     def detach_tool(self, tool_id, target_pos):
@@ -79,18 +98,18 @@ class ToolAdapter:
             # Detaching Code here
             # detach(target_pos)
 
-            print(f"<detach_tool> Tool '{tool_id}' detached")
+            print(f"Tool '{tool_id}' detached")
         else:
-            print(f"<detach_tool> Tool '{tool_id}' not found")
+            print(f"Tool '{tool_id}' not found")
 
     def move_tool_to(self, tool_id, pose, slots_obj):
         if tool_id not in self.attached:
-            print(f"<move_tool_to> Tool '{tool_id}' not attached")
+            print(f"Tool '{tool_id}' not attached")
             return
 
         slot_id = slots_obj.find_closest_slot(pose)
         if slot_id is None:
-            print(f"<move_tool_to> No matching slot for pose {pose}")
+            print(f"No matching slot for pose {pose}")
             return
 
         self.attached[tool_id]["slot"] = slot_id
@@ -98,7 +117,7 @@ class ToolAdapter:
 
             # Moving Tool Code here
             
-        print(f"<move_tool_to> Tool '{tool_id}' moved to slot {slot_id}")
+        print(f"Tool '{tool_id}' moved to slot {slot_id}")
 
     # Depreciated probably
     # def get_tool_status(self, tool_id):
