@@ -1,103 +1,114 @@
 import customtkinter as ctk
-import random
+import cv2
+from PIL import Image, ImageTk
 
-# Appearance settings
+# Open webcam globally
+cap = cv2.VideoCapture(0)
+
+# Set appearance mode and theme
 ctk.set_appearance_mode("System")
-ctk.set_default_color_theme("blue")
+ctk.set_default_color_theme("themes/oceanix.json")
 
-
-# Base class for pages
 class BasePage(ctk.CTkFrame):
     def __init__(self, master, controller):
         super().__init__(master)
         self.controller = controller
 
-
-# Login Page (simple entry for demo purposes)
 class LoginPage(BasePage):
     def __init__(self, master, controller):
         super().__init__(master, controller)
 
-        ctk.CTkLabel(self, text="Username").pack(pady=10)
+        ctk.CTkLabel(self, text="Enter Username").pack(pady=20)
         self.username_entry = ctk.CTkEntry(self)
-        self.username_entry.pack(pady=5)
-
-        ctk.CTkButton(self, text="Login", command=self.login).pack(pady=20)
+        self.username_entry.pack(pady=10)
+        self.login_button = ctk.CTkButton(self, text="Login", command=self.login)
+        self.login_button.pack(pady=10)
 
     def login(self):
         username = self.username_entry.get()
-        if username:
+        if username.strip() != "":
             self.controller.shared_data["user"] = username
             self.controller.show_frame("DashboardPage")
 
-
-# Dashboard Page (displays dynamic data)
 class DashboardPage(BasePage):
     def __init__(self, master, controller):
         super().__init__(master, controller)
 
-        self.title_label = ctk.CTkLabel(self, text="Dashboard", font=ctk.CTkFont(size=20, weight="bold"))
-        self.title_label.pack(pady=10)
+        self.welcome_label = ctk.CTkLabel(self, text="")
+        self.welcome_label.pack(pady=10)
 
-        self.user_label = ctk.CTkLabel(self, text="")
-        self.user_label.pack(pady=5)
+        # Label to show webcam frames
+        self.camera_label = ctk.CTkLabel(self)
+        self.camera_label.pack(pady=10)
 
-        # Example data display (you can replace these with real values later)
-        self.data_label_1 = ctk.CTkLabel(self, text="Temperature:")
-        self.data_value_1 = ctk.CTkLabel(self, text="-- °C")
-        self.data_label_1.pack()
-        self.data_value_1.pack()
+        self._stop_camera = True  # Start stopped
+        self.current_image = None
 
-        self.data_label_2 = ctk.CTkLabel(self, text="Tool Attached:")
-        self.data_value_2 = ctk.CTkLabel(self, text="None")
-        self.data_label_2.pack()
-        self.data_value_2.pack()
+    def update_video(self):
+        if self._stop_camera:
+            return
 
-        ctk.CTkButton(self, text="Refresh Data", command=self.refresh_data).pack(pady=15)
-        ctk.CTkButton(self, text="Logout", command=self.logout).pack()
+        ret, frame = cap.read()
+        if ret:
+            # Convert BGR to RGB
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(frame_rgb)
+
+            # Convert to Tkinter PhotoImage
+            imgtk = ImageTk.PhotoImage(img)
+
+            # Update label image
+            self.camera_label.configure(image=imgtk)
+
+        # Schedule next frame update ~60 FPS
+        self.camera_label.after(15, self.update_video)
 
     def tkraise(self, aboveThis=None):
-        user = self.controller.shared_data.get("user", "Unknown")
-        self.user_label.configure(text=f"Welcome, {user}")
-        self.refresh_data()
+
+        # Start webcam update loop
+        self._stop_camera = False
+        self.update_video()
+
         super().tkraise(aboveThis)
 
-    def refresh_data(self):
-        # Simulate dynamic values; replace with real data fetch logic
-        temp = round(random.uniform(22, 28), 1)
-        tool = random.choice(["Scalpel", "Forceps", "None"])
-        self.data_value_1.configure(text=f"{temp} °C")
-        self.data_value_2.configure(text=tool)
+    def on_hide(self):
+        # Stop webcam loop when page is hidden
+        self._stop_camera = True
 
-    def logout(self):
-        self.controller.shared_data["user"] = None
-        self.controller.show_frame("LoginPage")
+class SettingsPage(BasePage):
+    def __init__(self, master, controller):
+        super().__init__(master, controller)
+        ctk.CTkLabel(self, text="Settings Page (empty)").pack(pady=20)
 
 
 # App Controller
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Surgical Tool Dashboard")
-        self.geometry("400x400")
-        self.shared_data = {}
+        self.geometry("640x480")
 
         container = ctk.CTkFrame(self)
         container.pack(fill="both", expand=True)
 
         self.frames = {}
-        for PageClass in (LoginPage, DashboardPage):
-            name = PageClass.__name__
+        for PageClass in (LoginPage, DashboardPage, SettingsPage):
+            page_name = PageClass.__name__
             frame = PageClass(container, self)
-            self.frames[name] = frame
+            self.frames[page_name] = frame
             frame.grid(row=0, column=0, sticky="nsew")
 
-        self.show_frame("LoginPage")
+        self.show_frame("DashboardPage")
 
     def show_frame(self, name):
+        for frame in self.frames.values():
+            if hasattr(frame, "on_hide"):
+                frame.on_hide()
         frame = self.frames[name]
         frame.tkraise()
 
+    def on_closing(self):
+        cap.release()
+        self.destroy()
 
 if __name__ == "__main__":
     app = App()

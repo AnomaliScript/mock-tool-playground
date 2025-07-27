@@ -96,22 +96,6 @@ while True:
                         0.5, 
                         (255, 100, 0), 
                         2)
-
-        # Display virtual slots
-        for pose in slots.slot_positions.values():
-            # Only x, y, z are needed; orientation (roll, pitch, yaw) are ignored for drawing
-            slot_3d = pose[:3].reshape(1, 1, 3).astype(np.float32)
-            img_pts, _ = cv2.projectPoints(
-                slot_3d,
-                rvec=np.zeros((3, 1)),              # Identity rotation (since already in camera frame)
-                tvec=np.zeros((3, 1)),              # Identity translation
-                cameraMatrix=camera_matrix,
-                distCoeffs=dist_coeffs
-            )
-            x2d, y2d = int(img_pts[0, 0, 0]), int(img_pts[0, 0, 1])
-            # Optionally, check that x2d and y2d are within frame bounds
-            if 0 <= x2d < frame.shape[1] and 0 <= y2d < frame.shape[0]:
-                cv2.circle(frame, (x2d, y2d), 20, (0,255,0), 2)
         
     cv2.circle(frame, (0, 0), 30, (0,0,255), 3)
 
