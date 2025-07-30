@@ -39,7 +39,7 @@ class DashboardPage(BasePage):
 
         # Label to show webcam frames
         self.camera_label = ctk.CTkLabel(self)
-        self.camera_label.pack(pady=10)
+        self.camera_label.pack(pady=50)
 
         self._stop_camera = True  # Start stopped
         self.current_image = None
@@ -55,7 +55,7 @@ class DashboardPage(BasePage):
             img = Image.fromarray(frame_rgb)
 
             # Convert to Tkinter PhotoImage
-            imgtk = ImageTk.PhotoImage(img)
+            imgtk = ImageTk.PhotoImage(img.resize((800, 600)), (800, 600))
 
             # Update label image
             self.camera_label.configure(image=imgtk)
@@ -85,7 +85,7 @@ class SettingsPage(BasePage):
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.geometry("640x480")
+        self.geometry("1280x720")
 
         container = ctk.CTkFrame(self)
         container.pack(fill="both", expand=True)

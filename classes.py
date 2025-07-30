@@ -1,57 +1,4 @@
-import math
 import numpy as np
-
-class Slots: 
-    def __init__(self, center_pos, num_slots, radius=0.25):
-        self.pos = center_pos
-        self.limit = num_slots
-        self.radius = radius
-        # This dict will be filled with positions in the "register" member method
-        self.slot_positions = {}
-
-    def register(self):
-        # Generate evenly spaced slot poses in a flat circle around center_pos.
-        angle_step = 2 * math.pi / self.limit
-
-        for i in range(self.limit):
-            angle = i * angle_step
-            x = self.pos[0] + self.radius * math.cos(angle)
-            y = self.pos[1] + self.radius * math.sin(angle)
-            z = self.pos[2]
-
-            # Fake orientation for now (roll, pitch, yaw) all zero
-            pose = np.array([x, y, z, 0.0, 0.0, 0.0])
-            self.slot_positions[i] = pose
-    
-    # math
-    def find_closest_slot(self, input_pose, threshold=0.01):
-        best_match = None
-        best_dist = float("inf")
-        for i, slot_pose in self.slot_positions.items():
-            dist = np.linalg.norm(input_pose[:3] - slot_pose[:3])
-            if dist < best_dist and dist <= threshold:
-                best_match = i
-                best_dist = dist
-        return best_match
-    
-    def set_slot_position(self, slot_id, pose):
-        # Manually set the pose of a specific slot.
-        self.slot_positions[slot_id] = pose
-    def save_to_file(self, filename):
-        # Save all slot positions to a JSON file.
-        import json
-        data = {i: pose.tolist() for i, pose in self.slot_positions.items()}
-        with open(filename, "w") as f:
-            json.dump(data, f)
-    def load_from_file(self, filename):
-        # Load slot positions from a JSON file.
-        import json
-        with open(filename, "r") as f:
-            data = json.load(f)
-        self.slot_positions = {int(i): np.array(p) for i, p in data.items()}
-
-
-# Slots.slot_positions will directly feed into ToolAdapter.p_positions
 
 class ToolAdapter:
     def __init__(self, available_tools, holding_limit, possible_positions):
@@ -128,3 +75,55 @@ class ToolAdapter:
     #     else:
     #         print(f"<get_tool_status> Tool '{tool_id}' not attached")
     #     return pose
+
+    # class Slots: 
+#     def __init__(self, center_pos, num_slots, radius=0.25):
+#         self.pos = center_pos
+#         self.limit = num_slots
+#         self.radius = radius
+#         # This dict will be filled with positions in the "register" member method
+#         self.slot_positions = {}
+
+#     def register(self):
+#         # Generate evenly spaced slot poses in a flat circle around center_pos.
+#         angle_step = 2 * math.pi / self.limit
+
+#         for i in range(self.limit):
+#             angle = i * angle_step
+#             x = self.pos[0] + self.radius * math.cos(angle)
+#             y = self.pos[1] + self.radius * math.sin(angle)
+#             z = self.pos[2]
+
+#             # Fake orientation for now (roll, pitch, yaw) all zero
+#             pose = np.array([x, y, z, 0.0, 0.0, 0.0])
+#             self.slot_positions[i] = pose
+    
+#     # math
+#     def find_closest_slot(self, input_pose, threshold=0.01):
+#         best_match = None
+#         best_dist = float("inf")
+#         for i, slot_pose in self.slot_positions.items():
+#             dist = np.linalg.norm(input_pose[:3] - slot_pose[:3])
+#             if dist < best_dist and dist <= threshold:
+#                 best_match = i
+#                 best_dist = dist
+#         return best_match
+    
+#     def set_slot_position(self, slot_id, pose):
+#         # Manually set the pose of a specific slot.
+#         self.slot_positions[slot_id] = pose
+#     def save_to_file(self, filename):
+#         # Save all slot positions to a JSON file.
+#         import json
+#         data = {i: pose.tolist() for i, pose in self.slot_positions.items()}
+#         with open(filename, "w") as f:
+#             json.dump(data, f)
+#     def load_from_file(self, filename):
+#         # Load slot positions from a JSON file.
+#         import json
+#         with open(filename, "r") as f:
+#             data = json.load(f)
+#         self.slot_positions = {int(i): np.array(p) for i, p in data.items()}
+
+
+# Slots.slot_positions will directly feed into ToolAdapter.p_positions
