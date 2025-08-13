@@ -15,6 +15,12 @@ class ToolAdapter:
         #     
         # }
 
+    # def show_unattached():
+
+    
+    # def show_attached():
+
+
     def attach_tool(self, chosen_id, pose, target_pos, slots_obj):
         # tool_id is an integer, and pose has six coords
         # chosen_id is ths id of the tool in the self.available dict
