@@ -11,9 +11,9 @@ class ToolAdapter:
         }
         self.available = available_tools
         self.limit = holding_limit
-        # self.p_positions = {
-        #     
-        # }
+        self.pospos = possible_positions
+        # pospos format
+        # [1, 2, 3, 4] (these are tag IDs)
 
     # def show_unattached():
 

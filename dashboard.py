@@ -45,17 +45,20 @@ class PreparationPage(BasePage):
     def __init__(self, master, controller):
         super().__init__(master, controller)
 
-        self.grid_rowconfigure(0, weight=1)
-        for col in (0, 1):
-            self.grid_columnconfigure(col, weight=1)
+        # --- structure for the whole page
+        cols, rows = 2, 3
+        for c in range(cols):
+            self.grid_columnconfigure(c, weight=1)
+        for r in range(rows):
+            self.grid_rowconfigure(r, weight=0)
 
         left = ctk.CTkFrame(self, fg_color="#333333")
         left.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
         right = ctk.CTkFrame(self, fg_color="#555555")
-        right.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+        right.grid(row=0, column=1, rowspan=3, sticky="nsew", padx=10, pady=10)
 
-        # ---- shared defaults
+        # tool defaults
         self.controller.shared_data.setdefault("holding_limit", 6)
         self.controller.shared_data.setdefault("tool_map", {
             0: "Scalpel", 1: "Forceps", 2: "Suction Tip", 3: "Probe",
@@ -63,49 +66,106 @@ class PreparationPage(BasePage):
         })
         self.controller.shared_data.setdefault("center", "")
 
-        # ---- holding limit UI
-        self.holding_limit_label = ctk.CTkLabel(left, text=f"Current value: {self.controller.shared_data['holding_limit']}")
-        self.holding_limit_label.pack(pady=12)
-        ctk.CTkLabel(left, text="Enter how many tool slots are on the prototype").pack()
-        self.hold_num = ctk.CTkEntry(left, placeholder_text="e.g. 6")
-        self.hold_num.pack(pady=6)
-        ctk.CTkButton(left, text="Submit New Holding Limit", command=self.submit_holding_limit).pack(pady=6)
+        # --- left pane grid (2 cols x 4 rows: row1 "grows") ---
+        cols, rows = 2, 4
+        for c in range(cols):
+            self.grid_columnconfigure(c, weight=1)
+        for r in range(rows):
+            self.grid_rowconfigure(r, weight=0)
+        left.grid_columnconfigure(0, weight=1)
+        left.grid_columnconfigure(1, weight=1)
+        # left.grid_rowconfigure(0, weight=0)   # Holding
+        # left.grid_rowconfigure(1, weight=1)   # Middle row expands (list/add)
+        # left.grid_rowconfigure(2, weight=0)   # Center ID
+        # left.grid_rowconfigure(3, weight=0)   # Login (optional)
 
-        # ---- tool list (scrollable)
-        ctk.CTkLabel(left, text="Current tools available:").pack(pady=(16, 6))
-        self.tool_list_frame = ctk.CTkScrollableFrame(left, height=140)
-        self.tool_list_frame.pack(fill="x", pady=(0, 10))
+        # ========= row 0: HOLDING LIMIT (colspan=2) =========
+        holding = ctk.CTkFrame(left)
+        holding.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
+        for c in range(3): holding.grid_columnconfigure(c, weight=1)
+
+        ctk.CTkLabel(holding, text="Holding Limit", font=("TkDefaultFont", 14, "bold")).grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=(6,4))
+
+        self.holding_limit_label = ctk.CTkLabel(
+            holding, text=f"Current value: {self.controller.shared_data['holding_limit']}"
+        )
+        self.holding_limit_label.grid(row=1, column=0, sticky="w", padx=6)
+
+        tool_slots_question = ctk.CTkLabel(holding, text="Enter how many tool slots are on the prototype")
+        tool_slots_question.grid(row=1, column=1, sticky="w", padx=6)
+
+        self.hold_num = ctk.CTkEntry(holding, placeholder_text="e.g. 5")
+        self.hold_num.grid(row=1, column=2, sticky="ew", padx=6)
+
+        ctk.CTkButton(holding, text="Submit", command=self.submit_holding_limit)\
+            .grid(row=2, column=2, sticky="ew", padx=6, pady=(6,0))
+
+        # ========= row 1 col 0: LIST OF TOOLS =========
+        tools_list = ctk.CTkFrame(left)
+        tools_list.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
+        tools_list.grid_columnconfigure(0, weight=1)
+        tools_list.grid_rowconfigure(1, weight=1)  # list grows
+
+        ctk.CTkLabel(tools_list, text="Current tools available:", font=("TkDefaultFont", 14, "bold")).grid(row=0, column=0, sticky="w", padx=6, pady=(6,4))
+
+        self.tool_list_frame = ctk.CTkScrollableFrame(tools_list)
+        self.tool_list_frame.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0,6))
+
         self.tool_list_text = ctk.CTkLabel(self.tool_list_frame, justify="left", anchor="w")
-        self.tool_list_text.pack(fill="x", padx=6, pady=6)
+        self.tool_list_text.grid(row=0, column=0, sticky="w", padx=6, pady=6)
 
-        # ---- add tool UI
-        ctk.CTkLabel(left, text="Add a tool (Name or Name:ID)").pack(pady=(6, 4))
-        self.new_tool = ctk.CTkEntry(left, placeholder_text="Retractor or Retractor:12")
-        self.new_tool.pack(pady=6, fill="x")
+        # ========= row 1 col 1: ADDING TOOLS =========
+        add_tool = ctk.CTkFrame(left)
+        add_tool.grid(row=1, column=1, sticky="nsew", padx=10, pady=10)
+        for c in range(1): add_tool.grid_columnconfigure(c, weight=1)
+
+        add_tool = ctk.CTkLabel(add_tool, text="Add tool", font=("TkDefaultFont", 14, "bold"))
+        add_tool.grid(row=0, column=0, sticky="w", padx=6, pady=(6,4))
+
+        ctk.CTkLabel(add_tool, text="Tool name").grid(row=1, column=0, sticky="w", padx=6)
+        self.new_tool = ctk.CTkEntry(add_tool, placeholder_text="Retractor")
+        self.new_tool.grid(row=2, column=0, sticky="ew", padx=6, pady=(0,8))
+
+        ctk.CTkLabel(add_tool, text="Tool ID (optional)").grid(row=3, column=0, sticky="w", padx=6)
+        self.new_tool_id = ctk.CTkEntry(add_tool, placeholder_text="12")
+        self.new_tool_id.grid(row=4, column=0, sticky="ew", padx=6, pady=(0,8))
+
+        submit_new_tool = ctk.CTkButton(add_tool, text="Submit New Tool", command=self.submit_additional_tool)
+        submit_new_tool.grid(row=5, column=0, sticky="ew", padx=6, pady=(0,6))
+
+        self.feedback = ctk.CTkLabel(add_tool, text="", text_color="#FFCC66")
+        self.feedback.grid(row=6, column=0, sticky="w", padx=6, pady=(2,0))
+
         self.new_tool.bind("<Return>", lambda _e: self.submit_additional_tool())
-        ctk.CTkButton(left, text="Submit New Tool", command=self.submit_additional_tool).pack(pady=6)
+        self.new_tool_id.bind("<Return>", lambda _e: self.submit_additional_tool())
 
-        # inline feedback label
-        self.feedback = ctk.CTkLabel(left, text="", text_color="#FFCC66")
-        self.feedback.pack(pady=(2, 10))
+        # ========= row 2: CENTER ID (colspan=2) =========
+        center = ctk.CTkFrame(left)
+        center.grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
+        for c in range(3): center.grid_columnconfigure(c, weight=1)
 
-        # ---- center ID UI
-        self.center_label = ctk.CTkLabel(left, text=f"Current center ID: {self.controller.shared_data['center']}")
-        self.center_label.pack(pady=12)
-        ctk.CTkLabel(left, text="Enter the center tag ID").pack()
-        self.center = ctk.CTkEntry(left, placeholder_text="e.g. 0")
-        self.center.pack(pady=6)
-        ctk.CTkButton(left, text="Submit Center ID", command=self.submit_center).pack(pady=6)
+        center_tag = ctk.CTkLabel(center, text="Center Tag", font=("TkDefaultFont", 14, "bold"))
+        center_tag.grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=(6,4))
 
-        # ---- right pane camera etc. (unchanged)
+        self.center_label = ctk.CTkLabel(center, text=f"Current center ID: {self.controller.shared_data['center']}")
+        self.center_label.grid(row=1, column=0, sticky="w", padx=6)
+
+        self.center = ctk.CTkEntry(center, placeholder_text="e.g. 0")
+        self.center.grid(row=1, column=1, sticky="ew", padx=6)
+
+        submit_center_id = ctk.CTkButton(center, text="Submit Center ID", command=self.submit_center)
+        submit_center_id.grid(row=1, column=2, sticky="ew", padx=6)
+
+        # ========= row 3: LOGIN (optional, colspan=2) =========
+        login = ctk.CTkButton(left, text="Login", command=self.login)
+        login.grid(row=3, column=0, columnspan=2, sticky="ew", padx=10, pady=(0,10))
+
+        # --- right: camera ---
         self.stop_camera = False
         self.camera_label = ctk.CTkLabel(right, text="")
         self.camera_label.pack(pady=10, expand=True)
 
         self.detector = Detector(families="tag25h9")
-
-        self.login_button = ctk.CTkButton(left, text="Login", command=self.login)
-        self.login_button.pack(pady=10)
 
         # initial render of the list
         self._render_tool_list()
@@ -146,49 +206,115 @@ class PreparationPage(BasePage):
                 return (name, int(id_str)) if id_str.isdigit() else (name, None)
         return raw, None
 
-    def _set_feedback(self, msg: str, ok: bool = True):
+    def _display_feedback(self, msg: str, ok: bool = True):
         color = "#A4E8A2" if ok else "#FF8A80"
         self.feedback.configure(text=msg, text_color=color)
 
-    # ---------- button callbacks (CTk) ----------
-    def submit_additional_tool(self):
-        user_text = self.new_tool.get()
-        name, tag_id = self._parse_tool_entry(user_text)
+        # ---------- button callbacks (CTk) ----------
+        name = (self.new_tool.get() or "").strip()
+        id_text = (self.new_tool_id.get() or "").strip()
+
         if not name:
-            self._set_feedback("Please enter a tool name.", ok=False)
+            # optionally show a small feedback label
             return
 
-        tm = self._tool_map()
+        tm = self.controller.shared_data["tool_map"]
 
+        # Parse optional ID
+        tag_id = int(id_text) if id_text.isdigit() else None
         if tag_id is None:
-            tag_id = self._smallest_unused_id()
-        elif tag_id in tm:
-            self._set_feedback(f"ID {tag_id} already used by '{tm[tag_id]}'. Choose another.", ok=False)
-            return
+            # auto-assign smallest unused
+            used = set(tm.keys())
+            tag_id = 0
+            while tag_id in used:
+                tag_id += 1
+        else:
+            if tag_id in tm:
+                # collision: bail or choose next free
+                # here we'll bail; alternatively, compute next free like above
+                # show feedback if you have a label
+                return
 
         tm[tag_id] = name
-        self._render_tool_list()
-        self._set_feedback(f"Added '{name}' as ID {tag_id}.")
+
+        # Refresh list
+        lines = [f"{tid}: {tm[tid]}" for tid in sorted(tm.keys())]
+        self.tool_list_text.configure(text="\n".join(lines) if lines else "<no tools>")
+
+        # Clear inputs
         self.new_tool.delete(0, "end")
+        self.new_tool_id.delete(0, "end")
 
     def submit_holding_limit(self):
         val = (self.hold_num.get() or "").strip()
         if val.isdigit():
             self.controller.shared_data["holding_limit"] = int(val)
             self.holding_limit_label.configure(text=f"Current value: {val}")
-            self._set_feedback("Holding limit updated.")
+            self._display_feedback("Holding limit updated.")
         else:
-            self._set_feedback("Enter a whole number for holding limit.", ok=False)
+            self._display_feedback("Enter a whole number for holding limit.", ok=False)
+
+    def submit_additional_tool(self):
+        name = self.new_tool.get().strip()
+        id_text = self.new_tool_id.get().strip()
+
+        # basic validation
+        if not name:
+            self.feedback.configure(text="Tool name cannot be empty", text_color="#FF6666")
+            return
+
+        # try parsing ID (optional)
+        tool_map = self.controller.shared_data["tool_map"]
+        if id_text:
+            try:
+                tool_id = int(id_text)
+            except ValueError:
+                self.feedback.configure(text="Tool ID must be a number", text_color="#FF6666")
+                return
+            if tool_id in tool_map:
+                self.feedback.configure(text=f"Tool ID {tool_id} already exists", text_color="#FF6666")
+                return
+        else:
+            # auto-pick the next free ID
+            tool_id = max(tool_map.keys(), default=-1) + 1
+
+        # add tool to map
+        tool_map[tool_id] = name
+
+        # refresh tool list display
+        self._render_tool_list()
+
+        # clear entries
+        self.new_tool.delete(0, "end")
+        self.new_tool_id.delete(0, "end")
+
+        # success feedback
+        self.feedback.configure(text=f"Added '{name}' (ID {tool_id})", text_color="#66FF66")
 
     def submit_center(self):
-        val = (self.center.get() or "").strip()
-        if val.isdigit():
-            self.controller.shared_data["center"] = int(val)
-        else:
-            # allow non-numeric for debugging, but tell the user
-            self.controller.shared_data["center"] = val
-        self.center_label.configure(text=f"Current center ID: {self.controller.shared_data['center']}")
-        self._set_feedback("Center updated.")
+        value = self.center.get().strip()
+
+        # basic validation
+        if not value:
+            self.feedback.configure(text="Center ID cannot be empty", text_color="#FF6666")
+            return
+
+        try:
+            center_id = int(value)
+        except ValueError:
+            self.feedback.configure(text="Center ID must be a number", text_color="#FF6666")
+            return
+
+        # update shared data
+        self.controller.shared_data["center"] = center_id
+
+        # update label display
+        self.center_label.configure(text=f"Current center ID: {center_id}")
+
+        # clear entry
+        self.center.delete(0, "end")
+
+        self.feedback.configure(text=f"Center ID set to {center_id}", text_color="#66FF66")
 
     # Called whenever this page is shown, which works well for displaying the camera
     def tkraise(self, aboveThis=None):
@@ -257,8 +383,11 @@ class DashboardPage(BasePage):
     def __init__(self, master, controller):
         super().__init__(master, controller)
 
-        self.adapter = classes.ToolAdapter(available_tools=self.controller.shared_data["tool_map"], # Done
-                      holding_limit=self.controller.shared_data["holding_limit"], # Done
+        # possible_positions calculation (pospos)
+        
+
+        self.adapter = classes.ToolAdapter(available_tools=self.controller.shared_data["tool_map"],
+                      holding_limit=self.controller.shared_data["holding_limit"],
                       possible_positions=None)
         
         self.detector = Detector(families="tag25h9")
@@ -307,6 +436,7 @@ class DashboardPage(BasePage):
         self.panel_title = ctk.CTkLabel(self.panel, text="Dashboard Panel", font=("TkDefaultFont", 16, "bold"))
         self.panel_title.pack(pady=(8, 6))
 
+        # Output for API methods
         self.panel_body = ctk.CTkFrame(self.panel, fg_color="transparent")
         self.panel_body.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -329,22 +459,21 @@ class DashboardPage(BasePage):
 
         # Widgets/Buttons within API Function Widget
         show_button = ctk.CTkButton(self.functions, text="Show All Attached Tools", fg_color="#DDDDDD", 
-                                    command=lambda: self._panel_show("Seen Tags", self.view_shown_tags)
-)
+                                    command=lambda: self._panel_show("Seen Tags", self.view_shown_tags))
         show_button.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
         self.visible_ids = set()
 
         attach_button = ctk.CTkButton(self.functions, text="Attach Tool", fg_color="#CCCCCC", 
-                                      command=lambda: self.controller.attach())
+                                      command=lambda: self._panel_show("Seen Tags", self.attach))
         attach_button.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
 
         detach_button = ctk.CTkButton(self.functions, text="Detach Tool", fg_color="#BBBBBB", 
-                                      command=lambda: self.controller.detach())
+                                      command=lambda: self._panel_show("Seen Tags", self.detach_tool))
         detach_button.grid(row=0, column=2, sticky="nsew", padx=5, pady=5)
 
         move_button = ctk.CTkButton(self.functions, text="Move Tool", fg_color="#AAAAAA", 
-                                    command=lambda: self.controller.move())
+                                    command=lambda: self._panel_show("Seen Tags", self.move_tool))
         move_button.grid(row=0, column=3, sticky="nsew", padx=5, pady=5)
 
         settings_button = ctk.CTkButton(self.functions, text="Settings Page", fg_color="#999999", 
@@ -377,7 +506,7 @@ class DashboardPage(BasePage):
     def _panel_show(self, title: str, builder):
         self.panel_title.configure(text=title)
         self._panel_clear()
-        builder(self.panel_body)  # build content into panel_body
+        builder(self.panel_body)  # builder represents the API function
 
     # Helpers (CTk-safe)
     def _tool_map(self):
@@ -390,8 +519,7 @@ class DashboardPage(BasePage):
         tm = self.controller.shared_data["tool_map"]
         ids = sorted(self.visible_ids)
 
-        title = ctk.CTkLabel(parent, text="Seen Tags (this session):",
-                            anchor="w", justify="left")
+        title = ctk.CTkLabel(parent, text="Seen Tags (this session):", anchor="w", justify="center")
         title.pack(anchor="w", pady=(0, 6))
 
         if not ids:
@@ -401,17 +529,22 @@ class DashboardPage(BasePage):
         lines = [f"{tid}: {tm.get(tid, f'Unknown Tool {tid}')}" for tid in ids]
         ctk.CTkLabel(parent, text="\n".join(lines), anchor="w", justify="left").pack(anchor="w")
 
-    def attach(self):
+    def attach(self, parent):
         if len(self.attached) >= self.limit:
-            self.adapter_obj.configure(text="Max limit reached.")
+            error = ctk.CTkLabel(parent, text="Max limit reached.", anchor="w", justify="center")
+            error.pack(anchor="w", pady=(0, 6))
             return
-        tool_id = len(self.attached)
+        
+        tm = self.controller.shared_data["tool_map"]
+
+        # tool_id = len(self.attached)
     
     # translation zone begin
     def attach_tool(self, chosen_id, pose, target_pos, slots_obj):
         # tool_id is an integer, and pose has six coords
         # chosen_id is ths id of the tool in the self.available dict
         # Has to return a string if there is an error
+        
         if len(self.attached) >= self.limit:
             self.adapter_obj.configure(text="Max limit reached.")
             return
@@ -433,9 +566,9 @@ class DashboardPage(BasePage):
         return pose
     # translation zone end
 
-    def detach(self):
+    def detach_tool(self):
         print("detach")
-    def move(self):
+    def move_tool(self):
         print("move")
     # def where(self):
     #     print("where")
@@ -483,7 +616,7 @@ class DashboardPage(BasePage):
                     # Display tag info
 
                     # Array of tags
-                    self.seen.append(tag)
+                    # self.seen.append(tag)
                     tool_name = tool_map.get(tag.tag_id, f"Unknown Tool {tag.tag_id}")
                     cv2.putText(frame, 
                                 f"{tool_name} (ID: {tag.tag_id}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
@@ -560,6 +693,9 @@ class App(ctk.CTk):
         self.container.grid_columnconfigure(0, weight=1)
 
         self.shared_data = {}
+        # holding_limit
+        # tool_map
+        # center
 
         # Load page frames into self.container
         self.frames = {}
