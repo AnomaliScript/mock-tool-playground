@@ -6,14 +6,14 @@ class ToolAdapter:
         self.attached = {
             # For each tool_id:
             # "pose": {1, 2, 3, 4, 5, 6}
-            # "slot" : slots.slot_positions[int]
+            # "position" : int
             # "name": "scalpel"
         }
         self.available = available_tools
         self.limit = holding_limit
         self.pospos = possible_positions
         # pospos format
-        # [1, 2, 3, 4] (these are tag IDs)
+        # {1: [tvec[0][0]:.3f, tvec[1][0]:.3f, tvec[2][0]:.3f], 2: ...} (these are positions/preferred IDs)
 
     # def show_unattached():
 

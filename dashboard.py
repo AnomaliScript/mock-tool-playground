@@ -66,8 +66,8 @@ class PreparationPage(BasePage):
         })
         self.controller.shared_data.setdefault("center", "")
 
-        # --- left pane grid (2 cols x 4 rows: row1 "grows") ---
-        cols, rows = 2, 4
+        # --- left pane grid (2 cols x 5 rows: row1 "grows") ---
+        cols, rows = 2, 5
         for c in range(cols):
             self.grid_columnconfigure(c, weight=1)
         for r in range(rows):
@@ -75,11 +75,12 @@ class PreparationPage(BasePage):
         left.grid_columnconfigure(0, weight=1)
         left.grid_columnconfigure(1, weight=1)
         # left.grid_rowconfigure(0, weight=0)   # Holding
-        # left.grid_rowconfigure(1, weight=1)   # Middle row expands (list/add)
+        left.grid_rowconfigure(1, weight=1)   # Middle row expands (list/add)
         # left.grid_rowconfigure(2, weight=0)   # Center ID
-        # left.grid_rowconfigure(3, weight=0)   # Login (optional)
+        # left.grid_rowconfigure(3, weight=0)   # Position IDs
+        # left.grid_rowconfigure(4, weight=0)   # Login
 
-        # ========= row 0: HOLDING LIMIT (colspan=2) =========
+        # ========= row 0: Holding Limit (colspan=2) =========
         holding = ctk.CTkFrame(left)
         holding.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
         for c in range(3): holding.grid_columnconfigure(c, weight=1)
@@ -100,7 +101,7 @@ class PreparationPage(BasePage):
         ctk.CTkButton(holding, text="Submit", command=self.submit_holding_limit)\
             .grid(row=2, column=2, sticky="ew", padx=6, pady=(6,0))
 
-        # ========= row 1 col 0: LIST OF TOOLS =========
+        # ========= row 1 col 0: List of Tools =========
         tools_list = ctk.CTkFrame(left)
         tools_list.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
         tools_list.grid_columnconfigure(0, weight=1)
@@ -114,7 +115,7 @@ class PreparationPage(BasePage):
         self.tool_list_text = ctk.CTkLabel(self.tool_list_frame, justify="left", anchor="w")
         self.tool_list_text.grid(row=0, column=0, sticky="w", padx=6, pady=6)
 
-        # ========= row 1 col 1: ADDING TOOLS =========
+        # ========= row 1 col 1: Adding Tools =========
         add_tool = ctk.CTkFrame(left)
         add_tool.grid(row=1, column=1, sticky="nsew", padx=10, pady=10)
         for c in range(1): add_tool.grid_columnconfigure(c, weight=1)
@@ -139,10 +140,10 @@ class PreparationPage(BasePage):
         self.new_tool.bind("<Return>", lambda _e: self.submit_additional_tool())
         self.new_tool_id.bind("<Return>", lambda _e: self.submit_additional_tool())
 
-        # ========= row 2: CENTER ID (colspan=2) =========
+        # ========= row 2: Center ID =========
         center = ctk.CTkFrame(left)
         center.grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
-        for c in range(3): center.grid_columnconfigure(c, weight=1)
+        for c in range(3): center.grid_columnconfigure(c, weight=1) # 3 spots
 
         center_tag = ctk.CTkLabel(center, text="Center Tag", font=("TkDefaultFont", 14, "bold"))
         center_tag.grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=(6,4))
@@ -156,9 +157,47 @@ class PreparationPage(BasePage):
         submit_center_id = ctk.CTkButton(center, text="Submit Center ID", command=self.submit_center)
         submit_center_id.grid(row=1, column=2, sticky="ew", padx=6)
 
-        # ========= row 3: LOGIN (optional, colspan=2) =========
+        # ========= row 3 col 0: Position IDs =========
+        position_ids = ctk.CTkFrame(left)
+        position_ids.grid(row=3, column=0, sticky="nsew", padx=10, pady=10)
+        position_ids.grid_columnconfigure(0, weight=1)
+        position_ids.grid_rowconfigure(1, weight=1)  # list grows
+
+        ctk.CTkLabel(position_ids, text="Current Positions Registered:", font=("TkDefaultFont", 14, "bold")).grid(row=0, column=0, sticky="w", padx=6, pady=(6,4))
+
+        self.position_ids_frame = ctk.CTkScrollableFrame(position_ids)
+        self.position_ids_frame.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0,6))
+
+        self.position_ids_text = ctk.CTkLabel(self.position_ids_frame, justify="left", anchor="w")
+        self.position_ids_text.grid(row=0, column=0, sticky="w", padx=6, pady=6)
+
+        # ========= row 3 col 1: Position ID Assignment =========
+        position_assignment = ctk.CTkFrame(left)
+        position_assignment.grid(row=3, column=1, sticky="nsew", padx=10, pady=10)
+        position_assignment.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(position_assignment, text="Add a Position ID", font=("TkDefaultFont", 14, "bold")).grid(row=0, column=0, sticky="w", padx=6, pady=(6,4))
+
+        ctk.CTkLabel(position_assignment, text="AprilTag ID").grid(row=1, column=0, sticky="w", padx=6)
+        self.new_pos_april = ctk.CTkEntry(position_assignment, placeholder_text="37")
+        self.new_pos_april.grid(row=2, column=0, sticky="ew", padx=6, pady=(0,8))
+
+        ctk.CTkLabel(position_assignment, text="Preferred Position ID").grid(row=3, column=0, sticky="w", padx=6)
+        self.new_pos_id = ctk.CTkEntry(position_assignment, placeholder_text="1")
+        self.new_pos_id.grid(row=4, column=0, sticky="ew", padx=6, pady=(0,8))
+
+        submit_new_pos = ctk.CTkButton(position_assignment, text="Submit New Position", command=self.submit_position_ids)
+        submit_new_pos.grid(row=5, column=0, sticky="ew", padx=6, pady=(0,6))
+
+        self.feedback = ctk.CTkLabel(position_assignment, text="", text_color="#FFCC66")
+        self.feedback.grid(row=6, column=0, sticky="w", padx=6, pady=(2,0))
+
+        self.new_pos_april.bind("<Return>", lambda _e: self.submit_position_ids())
+        self.new_pos_id.bind("<Return>", lambda _e: self.submit_position_ids())
+        
+        # ========= row 4: Login =========
         login = ctk.CTkButton(left, text="Login", command=self.login)
-        login.grid(row=3, column=0, columnspan=2, sticky="ew", padx=10, pady=(0,10))
+        login.grid(row=4, column=0, columnspan=2, sticky="ew", padx=10, pady=(0,10))
 
         # --- right: camera ---
         self.stop_camera = False
@@ -181,12 +220,12 @@ class PreparationPage(BasePage):
             lines = ["<no tools>"]
         self.tool_list_text.configure(text="\n".join(lines))
 
-    def _smallest_unused_id(self):
-        used = set(self._tool_map().keys())
-        i = 0
-        while i in used:
-            i += 1
-        return i
+    # def _smallest_unused_id(self):
+    #     used = set(self._tool_map().keys())
+    #     i = 0
+    #     while i in used:
+    #         i += 1
+    #     return i
 
     def _parse_tool_entry(self, s: str):
         """
@@ -245,6 +284,13 @@ class PreparationPage(BasePage):
         self.new_tool.delete(0, "end")
         self.new_tool_id.delete(0, "end")
 
+    def _april_to_preferred(self, april_id):
+        # get the mapping
+        pos_map = self.controller.shared_data.get("pos", {})
+
+        # look up preferred ID if it exists, otherwise fall back to raw
+        return pos_map.get(april_id, april_id)
+
     def submit_holding_limit(self):
         val = (self.hold_num.get() or "").strip()
         if val.isdigit():
@@ -290,6 +336,58 @@ class PreparationPage(BasePage):
 
         # success feedback
         self.feedback.configure(text=f"Added '{name}' (ID {tool_id})", text_color="#66FF66")
+
+    def submit_position_ids(self):
+        # {AprilTag ID: Preferred ID}
+        april = (self.new_pos_april.get() or "").strip()
+        new_pos_id = (self.new_pos_id.get() or "").strip()
+
+        # basic validation
+        if not april:
+            self.feedback.configure(text="AprilTag ID cannot be empty", text_color="#FF6666")
+            return
+        if not new_pos_id:
+            self.feedback.configure(text="Preferred ID cannot be empty", text_color="#FF6666")
+            return
+
+        # try parsing IDs
+        try:
+            april_id = int(april)
+        except ValueError:
+            self.feedback.configure(text="AprilTag ID must be a number", text_color="#FF6666")
+            return
+
+        try:
+            pref_id = int(new_pos_id)
+        except ValueError:
+            self.feedback.configure(text="Preferred ID must be a number", text_color="#FF6666")
+            return
+
+        # position map (AprilTag: Preferred)
+        pos_map = self.controller.shared_data.setdefault("pos", {})
+
+        # collisions
+        if april_id in pos_map:
+            self.feedback.configure(text=f"AprilTag {april_id} already mapped to {pos_map[april_id]}", text_color="#FF6666")
+            return
+        if pref_id in pos_map.values():
+            self.feedback.configure(text=f"Preferred ID {pref_id} already in use", text_color="#FF6666")
+            return
+
+        # add mapping
+        pos_map[april_id] = pref_id
+
+        # refresh list
+        lines = [f"{a} → {p}" for a, p in sorted(pos_map.items())]
+        self.position_ids_text.configure(text="\n".join(lines) if lines else "<no positions>")
+
+        # clear entries
+        self.new_pos_april.delete(0, "end")
+        self.new_pos_id.delete(0, "end")
+
+        # success feedback
+        self.feedback.configure(text=f"Added AprilTag ID {april_id} as ID {pref_id}", text_color="#66FF66")
+
 
     def submit_center(self):
         value = self.center.get().strip()
@@ -347,10 +445,12 @@ class PreparationPage(BasePage):
                                     tvec, 
                                     0.02)
 
+                    preferred = submit_position_ids(tag.tag_id)
+
                     # Display tag info
                     tool_name = tool_map.get(tag.tag_id, f"Unknown Tool {tag.tag_id}")
                     cv2.putText(frame, 
-                                f"{tool_name} (ID: {tag.tag_id}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
+                                f"{tool_name} (Preferred ID: {preferred}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
                                 (int(tag.corners[0][0]), int(tag.corners[0][1]) - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 
                                 0.5, 
@@ -386,9 +486,11 @@ class DashboardPage(BasePage):
         # possible_positions calculation (pospos)
         
 
-        self.adapter = classes.ToolAdapter(available_tools=self.controller.shared_data["tool_map"],
-                      holding_limit=self.controller.shared_data["holding_limit"],
-                      possible_positions=None)
+        self.adapter = classes.ToolAdapter(
+                    available_tools=self.controller.shared_data["tool_map"],
+                    holding_limit=self.controller.shared_data["holding_limit"],
+                    possible_positions=self.controller.shared_data["pos"]
+                    )
         
         self.detector = Detector(families="tag25h9")
         
@@ -512,6 +614,22 @@ class DashboardPage(BasePage):
     def _tool_map(self):
         return self.controller.shared_data["tool_map"]
     
+    def _get_position_id(self, april_id: int):
+        """
+        Given an AprilTag ID, return the preferred position ID (if mapped).
+        Falls back to the raw AprilTag ID if no mapping exists.
+        """
+        pos_map = self.controller.shared_data.get("pos", {})
+        return pos_map.get(april_id, april_id)
+    
+    def _april_to_preferred(self, april_id):
+        # get the mapping
+        pos_map = self.controller.shared_data.get("pos", {})
+
+        # look up preferred ID if it exists, otherwise fall back to raw
+        return pos_map.get(april_id, april_id)
+                
+
     # adapter-obj Dynamic CTkFrame
     # API FUNCTIONS (add, remove, etc)
 
@@ -536,35 +654,13 @@ class DashboardPage(BasePage):
             return
         
         tm = self.controller.shared_data["tool_map"]
-
-        # tool_id = len(self.attached)
-    
-    # translation zone begin
-    def attach_tool(self, chosen_id, pose, target_pos, slots_obj):
-        # tool_id is an integer, and pose has six coords
-        # chosen_id is ths id of the tool in the self.available dict
-        # Has to return a string if there is an error
-        
-        if len(self.attached) >= self.limit:
-            self.adapter_obj.configure(text="Max limit reached.")
-            return
+        # tool_id assignment by number of attached already present (meaning that a tool_id can't be greater than 3)
         tool_id = len(self.attached)
-        
-        slot_id = slots_obj.find_closest_slot(pose)
-        print(f"Slot ID: {slot_id}")
-        print(f"{self.available}")
-        self.attached[tool_id] = {
-            "pose": pose,
-            "slot": slot_id,
-            "name": self.available[chosen_id]
+        self.adapter.attached[tool_id] = {
+            # "pose": {1, 2, 3, 4, 5, 6}
+            # "position" : int
+            # "name": "scalpel"
         }
-
-        # Attaching Tool Code Here
-        # attach(target_pos)
-
-        print(f"Tool '{tool_id}' attached at slot {self.attached[tool_id]["pose"]}")
-        return pose
-    # translation zone end
 
     def detach_tool(self):
         print("detach")
@@ -606,6 +702,9 @@ class DashboardPage(BasePage):
                     continue  # Skip if pose estimation failed
 
                 if success:
+                    # pospos refreashing
+                    self.adapter.pospos()
+
                     cv2.drawFrameAxes(frame, 
                                     camera_matrix, 
                                     dist_coeffs, 
