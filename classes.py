@@ -1,7 +1,7 @@
 import numpy as np
 
 class ToolAdapter:
-    def __init__(self, available_tools, holding_limit, possible_positions):
+    def __init__(self, available_tools, storage_limit: int):
         # available_tools is a dict (tool_map)
         self.attached = {
             # For each tool_id:
@@ -10,8 +10,7 @@ class ToolAdapter:
             # "name": "scalpel"
         }
         self.available = available_tools
-        self.limit = holding_limit
-        self.pospos = possible_positions
+        self.storage = storage_limit
         # pospos format
         # {1: [tvec[0][0]:.3f, tvec[1][0]:.3f, tvec[2][0]:.3f], 2: ...} (these are positions/preferred IDs)
 
