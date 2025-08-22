@@ -484,7 +484,9 @@ class PreparationPage(BasePage):
         Setting display preference for showing tools with their april_ids, 
         not their preferred_ids unless told otherwise
         """
-        self.controller.shared_values["show_april"] = True
+
+        self.controller.shared_data.setdefault("show_april", True)
+        self.controller.shared_data["show_april"] = True
 
 
 
@@ -628,7 +630,7 @@ class DashboardPage(BasePage):
         return pref_map.get(april_id, april_id)
     
     def _fill_available_list(self):
-        if self.controller.shared_values["show_april"] != True:
+        if self.controller.shared_data["show_april"] != True:
             for i in self._tool_map():
                 self.available_list.configure(text="")
     
@@ -807,6 +809,7 @@ class App(ctk.CTk):
         # storage
         # tool_map
         # center
+        # show_april
 
         # Load page frames into self.container
         self.frames = {}
