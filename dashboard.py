@@ -131,6 +131,10 @@ class PreparationPage(BasePage):
         self.new_tool_id = ctk.CTkEntry(add_tool, placeholder_text="12")
         self.new_tool_id.grid(row=4, column=0, sticky="ew", padx=6, pady=(0,8))
 
+        ctk.CTkLabel(add_tool, text="Preferred ID (optional)").grid(row=3, column=0, sticky="w", padx=6)
+        self.new_pref_id = ctk.CTkEntry(add_tool, placeholder_text="1")
+        self.new_pref_id.grid(row=4, column=0, sticky="ew", padx=6, pady=(0,8))
+
         submit_new_tool = ctk.CTkButton(add_tool, text="Submit New Tool", command=self.submit_additional_tool)
         submit_new_tool.grid(row=5, column=0, sticky="ew", padx=6, pady=(0,6))
 
@@ -285,6 +289,7 @@ class PreparationPage(BasePage):
     def submit_additional_tool(self):
         name = self.new_tool.get().strip()
         id_text = self.new_tool_id.get().strip()
+        pref_id_text = self.new_pref_id.get().strip()
 
         # basic validation
         if not name:
@@ -453,11 +458,20 @@ class PreparationPage(BasePage):
                                     tvec, 
                                     0.02)
 
-                    preferred = self._april_to_preferred(tag.tag_id)
-
                     # Display tag info
                     tool_name = tool_map.get(tag.tag_id, f"Unknown Tool {tag.tag_id}")
-                    cv2.putText(frame, 
+                    preferred = self._april_to_preferred(tag.tag_id)
+
+                    if (self.controller.shared_data["show_april"]):
+                        cv2.putText(frame, 
+                                f"{tool_name} (ID: {tag.tag_id}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
+                                (int(tag.corners[0][0]), int(tag.corners[0][1]) - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 
+                                0.5, 
+                                (255, 100, 0), 
+                                2)
+                    else: 
+                        cv2.putText(frame, 
                                 f"{tool_name} (Preferred ID: {preferred}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
                                 (int(tag.corners[0][0]), int(tag.corners[0][1]) - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 
