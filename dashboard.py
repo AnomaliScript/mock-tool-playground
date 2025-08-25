@@ -65,6 +65,8 @@ class PreparationPage(BasePage):
             4: "Camera Tool", 5: "Retractor", 6: "Surgical Scissors", 7: "Hemostat"
         })
         self.controller.shared_data.setdefault("center", "")
+        # position map (AprilTag: position)
+        self.controller.shared_data.setdefault("pos", {})
 
         # --- left pane grid (2 cols x 5 rows: row1 "grows") ---
         cols, rows = 2, 5
@@ -131,9 +133,9 @@ class PreparationPage(BasePage):
         self.new_tool_id = ctk.CTkEntry(add_tool, placeholder_text="12")
         self.new_tool_id.grid(row=4, column=0, sticky="ew", padx=6, pady=(0,8))
 
-        ctk.CTkLabel(add_tool, text="Preferred ID (optional)").grid(row=3, column=0, sticky="w", padx=6)
-        self.new_pref_id = ctk.CTkEntry(add_tool, placeholder_text="1")
-        self.new_pref_id.grid(row=4, column=0, sticky="ew", padx=6, pady=(0,8))
+        ctk.CTkLabel(add_tool, text="position ID (optional)").grid(row=3, column=0, sticky="w", padx=6)
+        self.new_pos_id = ctk.CTkEntry(add_tool, placeholder_text="1")
+        self.new_pos_id.grid(row=4, column=0, sticky="ew", padx=6, pady=(0,8))
 
         submit_new_tool = ctk.CTkButton(add_tool, text="Submit New Tool", command=self.submit_additional_tool)
         submit_new_tool.grid(row=5, column=0, sticky="ew", padx=6, pady=(0,6))
@@ -269,12 +271,12 @@ class PreparationPage(BasePage):
         self.new_tool.delete(0, "end")
         self.new_tool_id.delete(0, "end")
 
-    def _april_to_preferred(self, april_id):
+    def _april_to_position(self, april_id):
         # get the mapping
-        pref_map = self.controller.shared_data.get("pos", {})
+        pos_map = self.controller.shared_data.get("pos", {})
 
-        # look up preferred ID if it exists, otherwise fall back to raw
-        return pref_map.get(april_id, april_id)
+        # look up position ID if it exists, otherwise fall back to raw
+        return pos_map.get(april_id, april_id)
 
     def submit_storage(self):
         val = (self.hold_num.get() or "").strip()
@@ -287,17 +289,18 @@ class PreparationPage(BasePage):
         self.hold_num.delete(0, "end")
 
     def submit_additional_tool(self):
-        name = self.new_tool.get().strip()
-        id_text = self.new_tool_id.get().strip()
-        pref_id_text = self.new_pref_id.get().strip()
+        name = (self.new_tool.get() or "").strip()
+        id_text = (self.new_tool_id.get() or "").strip()
+        pos_id_text = (self.new_pos_id.get() or "").strip()
 
         # basic validation
         if not name:
             self.feedback.configure(text="Tool name cannot be empty", text_color="#FF6666")
             return
 
-        # try parsing ID (optional)
         tool_map = self.controller.shared_data["tool_map"]
+
+        # parse/assign tool_id
         if id_text:
             try:
                 tool_id = int(id_text)
@@ -308,17 +311,45 @@ class PreparationPage(BasePage):
                 self.feedback.configure(text=f"Tool ID {tool_id} already exists", text_color="#FF6666")
                 return
         else:
-            # auto-pick the next free ID
             tool_id = max(tool_map.keys(), default=-1) + 1
 
+        # add to tool map
         tool_map[tool_id] = name
 
+        tool_pos = self._april_to_position()
+        if pos_id_text:
+            try:
+                pos_id = int(pos_id_text)
+            except ValueError:
+                self.feedback.configure(text="position ID must be a number", text_color="#FF6666")
+                return
+
+            # ensure uniqueness among existing position tool IDs
+            if pos_id in tool_pos.values():
+                self.feedback.configure(text=f"position ID {pos_id} already in use for another tool", text_color="#FF6666")
+                return
+        else:
+            # auto-pick the smallest unused position id starting from 1
+            used = set(tool_pos.values())
+            pos_id = 1
+            while pos_id in used:
+                pos_id += 1
+
+        # store the tool's position id
+        self.controller.shared_data["pos"][tool_id] = pos_id
+
+        # refresh UI
         self._render_tool_list()
 
+        # clear inputs
         self.new_tool.delete(0, "end")
         self.new_tool_id.delete(0, "end")
+        self.new_pos_id.delete(0, "end")
 
-        self.feedback.configure(text=f"Added '{name}' (ID {tool_id})", text_color="#66FF66")
+        self.feedback.configure(
+            text=f"Added '{name}' (ID {tool_id}, position Tool ID {pos_id})",
+            text_color="#66FF66"
+        )
 
     def removing_tool(self):
         id_text = self.remove_tool.get().strip()
@@ -351,16 +382,16 @@ class PreparationPage(BasePage):
 
         self.feedback.configure(text=f"Removed '{removed_name}' (ID {tool_id})", text_color="#66FF66")
 
-    def submit_pref_ids(self, april_id):
-        # {AprilTag ID: Preferred ID}
+    def submit_pos_ids(self, april_id):
+        # {AprilTag ID: position ID}
         april = (self.new_pos_april.get() or "").strip()
-        new_pref_id = (self.new_pref_id.get() or "").strip()
+        new_pos_id = (self.new_pos_id.get() or "").strip()
 
         if not april:
             self.feedback.configure(text="AprilTag ID cannot be empty", text_color="#FF6666")
             return
-        if not new_pref_id:
-            self.feedback.configure(text="Preferred ID cannot be empty", text_color="#FF6666")
+        if not new_pos_id:
+            self.feedback.configure(text="position ID cannot be empty", text_color="#FF6666")
             return
 
         # try parsing IDs
@@ -371,35 +402,34 @@ class PreparationPage(BasePage):
             return
 
         try:
-            pref_id = int(new_pref_id)
+            pos_id = int(new_pos_id)
         except ValueError:
-            self.feedback.configure(text="Preferred ID must be a number", text_color="#FF6666")
+            self.feedback.configure(text="position ID must be a number", text_color="#FF6666")
             return
 
-        # position map (AprilTag: Preferred)
-        pref_map = self.controller.shared_data.setdefault("pos", {})
+        pos_map = self._april_to_position()
 
         # collisions
-        if april_id in pref_map:
-            self.feedback.configure(text=f"AprilTag {april_id} already mapped to {pref_map[april_id]}", text_color="#FF6666")
+        if april_id in pos_map:
+            self.feedback.configure(text=f"AprilTag {april_id} already mapped to {pos_map[april_id]}", text_color="#FF6666")
             return
-        if pref_id in pref_map.values():
-            self.feedback.configure(text=f"Preferred ID {pref_id} already in use", text_color="#FF6666")
+        if pos_id in pos_map.values():
+            self.feedback.configure(text=f"position ID {pos_id} already in use", text_color="#FF6666")
             return
 
         # add mapping
-        pref_map[april_id] = pref_id
+        pos_map[april_id] = pos_id
 
         # refresh list
-        lines = [f"{a} → {p}" for a, p in sorted(pref_map.items())]
+        lines = [f"{a} → {p}" for a, p in sorted(pos_map.items())]
         self.position_ids_text.configure(text="\n".join(lines) if lines else "<no positions>")
 
         # clear entries
         self.new_pos_april.delete(0, "end")
-        self.new_pref_id.delete(0, "end")
+        self.new_pos_id.delete(0, "end")
 
         # success feedback
-        self.feedback.configure(text=f"Added AprilTag ID {april_id} as ID {pref_id}", text_color="#66FF66")
+        self.feedback.configure(text=f"Added AprilTag ID {april_id} as ID {pos_id}", text_color="#66FF66")
 
 
     def submit_center(self):
@@ -460,7 +490,7 @@ class PreparationPage(BasePage):
 
                     # Display tag info
                     tool_name = tool_map.get(tag.tag_id, f"Unknown Tool {tag.tag_id}")
-                    preferred = self._april_to_preferred(tag.tag_id)
+                    position = self._april_to_position(tag.tag_id)
 
                     if (self.controller.shared_data["show_april"]):
                         cv2.putText(frame, 
@@ -472,7 +502,7 @@ class PreparationPage(BasePage):
                                 2)
                     else: 
                         cv2.putText(frame, 
-                                f"{tool_name} (Preferred ID: {preferred}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
+                                f"{tool_name} (position ID: {position}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
                                 (int(tag.corners[0][0]), int(tag.corners[0][1]) - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 
                                 0.5, 
@@ -495,8 +525,8 @@ class PreparationPage(BasePage):
     def login(self):
         self.controller.show_frame("DashboardPage")
         """
-        Setting display preference for showing tools with their april_ids, 
-        not their preferred_ids unless told otherwise
+        Setting display poserence for showing tools with their april_ids, 
+        not their position_ids unless told otherwise
         """
 
         self.controller.shared_data.setdefault("show_april", True)
@@ -637,23 +667,23 @@ class DashboardPage(BasePage):
     
     def _get_position_id(self, april_id: int):
         """
-        Given an AprilTag ID, return the preferred position ID (if mapped).
+        Given an AprilTag ID, return the position position ID (if mapped).
         Falls back to the raw AprilTag ID if no mapping exists.
         """
-        pref_map = self.controller.shared_data.get("pos", {})
-        return pref_map.get(april_id, april_id)
+        pos_map = self.controller.shared_data.get("pos", {})
+        return pos_map.get(april_id, april_id)
     
     def _fill_available_list(self):
         if self.controller.shared_data["show_april"] != True:
             for i in self._tool_map():
                 self.available_list.configure(text="")
     
-    def _april_to_preferred(self, april_id):
+    def _april_to_position(self, april_id):
         # get the mapping
-        pref_map = self.controller.shared_data.get("pos", {})
+        pos_map = self.controller.shared_data.get("pos", {})
 
-        # look up preferred ID if it exists, otherwise fall back to raw
-        return pref_map.get(april_id, april_id)
+        # look up position ID if it exists, otherwise fall back to raw
+        return pos_map.get(april_id, april_id)
                 
 
     # adapter-obj Dynamic CTkFrame
@@ -824,6 +854,7 @@ class App(ctk.CTk):
         # tool_map
         # center
         # show_april
+        # pos
 
         # Load page frames into self.container
         self.frames = {}
