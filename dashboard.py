@@ -133,12 +133,12 @@ class PreparationPage(BasePage):
         self.new_tool_id = ctk.CTkEntry(add_tool, placeholder_text="12")
         self.new_tool_id.grid(row=4, column=0, sticky="ew", padx=6, pady=(0,8))
 
-        ctk.CTkLabel(add_tool, text="position ID (optional)").grid(row=3, column=0, sticky="w", padx=6)
+        ctk.CTkLabel(add_tool, text="position ID (optional)").grid(row=5, column=0, sticky="w", padx=6)
         self.new_pos_id = ctk.CTkEntry(add_tool, placeholder_text="1")
-        self.new_pos_id.grid(row=4, column=0, sticky="ew", padx=6, pady=(0,8))
+        self.new_pos_id.grid(row=6, column=0, sticky="ew", padx=6, pady=(0,8))
 
         submit_new_tool = ctk.CTkButton(add_tool, text="Submit New Tool", command=self.submit_additional_tool)
-        submit_new_tool.grid(row=5, column=0, sticky="ew", padx=6, pady=(0,6))
+        submit_new_tool.grid(row=7, column=0, sticky="ew", padx=6, pady=(0,6))
 
         self.new_tool.bind("<Return>", lambda _e: self.submit_additional_tool())
         self.new_tool_id.bind("<Return>", lambda _e: self.submit_additional_tool())
@@ -199,12 +199,23 @@ class PreparationPage(BasePage):
     # Helpers (CTk-safe)
     def _tool_map(self):
         return self.controller.shared_data["tool_map"]
+    
+    def _pos_map(self):
+        return self.controller.shared_data["pos"]
 
     def _render_tool_list(self):
         tm = self._tool_map()
-        lines = [f"{tid}: {tm[tid]}" for tid in sorted(tm.keys())]
+        pm = self._pos_map()
+
+        lines = []
+        for tid in sorted(tm.keys()):
+            tool_name = tm[tid]
+            pid = pm.get(tid, "<no pos>")   # safely get pid, fallback if not found
+            lines.append(f"(Tag ID: {tid}, Pos ID: {pid}): {tool_name}")
+
         if not lines:
             lines = ["<no tools>"]
+
         self.tool_list_text.configure(text="\n".join(lines))
 
     # def _smallest_unused_id(self):
@@ -273,7 +284,7 @@ class PreparationPage(BasePage):
 
     def _april_to_position(self, april_id):
         # get the mapping
-        pos_map = self.controller.shared_data.get("pos", {})
+        pos_map = self._pos_map()
 
         # look up position ID if it exists, otherwise fall back to raw
         return pos_map.get(april_id, april_id)
@@ -300,7 +311,7 @@ class PreparationPage(BasePage):
 
         tool_map = self.controller.shared_data["tool_map"]
 
-        # parse/assign tool_id
+        # parse/assign tool id
         if id_text:
             try:
                 tool_id = int(id_text)
@@ -316,7 +327,7 @@ class PreparationPage(BasePage):
         # add to tool map
         tool_map[tool_id] = name
 
-        tool_pos = self._april_to_position()
+        pos_map = self._pos_map()
         if pos_id_text:
             try:
                 pos_id = int(pos_id_text)
@@ -325,23 +336,26 @@ class PreparationPage(BasePage):
                 return
 
             # ensure uniqueness among existing position tool IDs
-            if pos_id in tool_pos.values():
+            if pos_id in pos_map.values():
                 self.feedback.configure(text=f"position ID {pos_id} already in use for another tool", text_color="#FF6666")
                 return
         else:
-            # auto-pick the smallest unused position id starting from 1
-            used = set(tool_pos.values())
-            pos_id = 1
-            while pos_id in used:
-                pos_id += 1
+            if tool_id not in pos_map.values():
+                pos_id = tool_id
+            else: 
+                """
+                auto-pick the smallest unused position id starting from 1 (increments up by one unitl it gets to a "vacant" spot)
+                """
+                used = set(pos_map.values())
+                pos_id = 1
+                while pos_id in used:
+                    pos_id += 1
 
-        # store the tool's position id
+        # saving the tool's position id
         self.controller.shared_data["pos"][tool_id] = pos_id
 
-        # refresh UI
         self._render_tool_list()
 
-        # clear inputs
         self.new_tool.delete(0, "end")
         self.new_tool_id.delete(0, "end")
         self.new_pos_id.delete(0, "end")
@@ -407,7 +421,7 @@ class PreparationPage(BasePage):
             self.feedback.configure(text="position ID must be a number", text_color="#FF6666")
             return
 
-        pos_map = self._april_to_position()
+        pos_map = self._pos_map()
 
         # collisions
         if april_id in pos_map:
@@ -492,22 +506,13 @@ class PreparationPage(BasePage):
                     tool_name = tool_map.get(tag.tag_id, f"Unknown Tool {tag.tag_id}")
                     position = self._april_to_position(tag.tag_id)
 
-                    if (self.controller.shared_data["show_april"]):
-                        cv2.putText(frame, 
-                                f"{tool_name} (ID: {tag.tag_id}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
-                                (int(tag.corners[0][0]), int(tag.corners[0][1]) - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 
-                                0.5, 
-                                (255, 100, 0), 
-                                2)
-                    else: 
-                        cv2.putText(frame, 
-                                f"{tool_name} (position ID: {position}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
-                                (int(tag.corners[0][0]), int(tag.corners[0][1]) - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 
-                                0.5, 
-                                (255, 100, 0), 
-                                2)
+                    cv2.putText(frame, 
+                            f"{tool_name} (position ID: {position}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
+                            (int(tag.corners[0][0]), int(tag.corners[0][1]) - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 
+                            0.5, 
+                            (255, 100, 0), 
+                            2)
 
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(frame_rgb)
@@ -529,8 +534,8 @@ class PreparationPage(BasePage):
         not their position_ids unless told otherwise
         """
 
-        self.controller.shared_data.setdefault("show_april", True)
-        self.controller.shared_data["show_april"] = True
+        self.controller.shared_data.setdefault("show_april_mode", True)
+        self.controller.shared_data["show_april_mode"] = True
 
 
 
@@ -670,17 +675,17 @@ class DashboardPage(BasePage):
         Given an AprilTag ID, return the position position ID (if mapped).
         Falls back to the raw AprilTag ID if no mapping exists.
         """
-        pos_map = self.controller.shared_data.get("pos", {})
+        pos_map = self._pos_map()
         return pos_map.get(april_id, april_id)
     
     def _fill_available_list(self):
-        if self.controller.shared_data["show_april"] != True:
+        if self.controller.shared_data["show_april_mode"] != True:
             for i in self._tool_map():
                 self.available_list.configure(text="")
     
     def _april_to_position(self, april_id):
         # get the mapping
-        pos_map = self.controller.shared_data.get("pos", {})
+        pos_map = self._pos_map()
 
         # look up position ID if it exists, otherwise fall back to raw
         return pos_map.get(april_id, april_id)
@@ -771,12 +776,24 @@ class DashboardPage(BasePage):
                                     0.02)
 
                     # Display tag info
-
-                    # Array of tags
-                    # self.seen.append(tag)
+                    # Checking if the April Mode is on
                     tool_name = tool_map.get(tag.tag_id, f"Unknown Tool {tag.tag_id}")
+                    id_display = tag.tag_id
+                    if self.controller.shared_data["show_april_mode"]:
+                        helping_text = "April_ID"
+                    else:
+                        helping_text = "Position_ID"
+                        pos_map = self.controller.shared_data["pos"]
+                        if pos_map[tag.tag_id]:
+                            id_display = pos_map[tag.tag_id]
+
+                    # Checking if the ID is Center
+                    if (id_display == self.controller.shared_data["center"]):
+                        helping_text = "Center"
+                        tool_name = ""
+
                     cv2.putText(frame, 
-                                f"{tool_name} (ID: {tag.tag_id}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
+                                f"{tool_name} ({helping_text}: {id_display}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
                                 (int(tag.corners[0][0]), int(tag.corners[0][1]) - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 
                                 0.5, 
@@ -853,7 +870,7 @@ class App(ctk.CTk):
         # storage
         # tool_map
         # center
-        # show_april
+        # show_april_mode (boolean)
         # pos
 
         # Load page frames into self.container
