@@ -4,7 +4,7 @@ class ToolAdapter:
     def __init__(self, available_tools, storage_limit: int):
         # available_tools is a dict (tool_map)
         self.attached = {
-            # "pref_id" : int
+            # "pos_id" : int
             # "april_id" : int
             # "name": str
         }
@@ -17,56 +17,56 @@ class ToolAdapter:
     # def show_attached():
 
 
-    def attach_tool(self, chosen_id, pose, target_pos, slots_obj):
-        # tool_id is an integer, and pose has six coords
-        # chosen_id is ths id of the tool in the self.available dict
-        # Has to return a string if there is an error
-        if len(self.attached) >= self.limit:
-            return "Max limit reached."
-        tool_id = len(self.attached)
+    # def attach_tool(self, chosen_id, pose, target_pos, slots_obj):
+    #     # tool_id is an integer, and pose has six coords
+    #     # chosen_id is ths id of the tool in the self.available dict
+    #     # Has to return a string if there is an error
+    #     if len(self.attached) >= self.limit:
+    #         return "Max limit reached."
+    #     tool_id = len(self.attached)
         
-        slot_id = slots_obj.find_closest_slot(pose)
-        print(f"Slot ID: {slot_id}")
-        print(f"{self.available}")
-        self.attached[tool_id] = {
-            "pose": pose,
-            "slot": slot_id,
-            "name": self.available[chosen_id]
-        }
+    #     slot_id = slots_obj.find_closest_slot(pose)
+    #     print(f"Slot ID: {slot_id}")
+    #     print(f"{self.available}")
+    #     self.attached[tool_id] = {
+    #         "pose": pose,
+    #         "slot": slot_id,
+    #         "name": self.available[chosen_id]
+    #     }
 
-        # Attaching Tool Code Here
-        # attach(target_pos)
+    #     # Attaching Tool Code Here
+    #     # attach(target_pos)
 
-        print(f"Tool '{tool_id}' attached at slot {self.attached[tool_id]["pose"]}")
-        return pose
+    #     print(f"Tool '{tool_id}' attached at slot {self.attached[tool_id]["pose"]}")
+    #     return pose
 
-    def detach_tool(self, tool_id, target_pos):
-        if tool_id in self.attached:
-            del self.attached[tool_id]
+    # def detach_tool(self, tool_id, target_pos):
+    #     if tool_id in self.attached:
+    #         del self.attached[tool_id]
             
-            # Detaching Code here
-            # detach(target_pos)
+    #         # Detaching Code here
+    #         # detach(target_pos)
 
-            print(f"Tool '{tool_id}' detached")
-        else:
-            print(f"Tool '{tool_id}' not found")
+    #         print(f"Tool '{tool_id}' detached")
+    #     else:
+    #         print(f"Tool '{tool_id}' not found")
 
-    def move_tool_to(self, tool_id, pose, slots_obj):
-        if tool_id not in self.attached:
-            print(f"Tool '{tool_id}' not attached")
-            return
+    # def move_tool_to(self, tool_id, pose, slots_obj):
+    #     if tool_id not in self.attached:
+    #         print(f"Tool '{tool_id}' not attached")
+    #         return
 
-        slot_id = slots_obj.find_closest_slot(pose)
-        if slot_id is None:
-            print(f"No matching slot for pose {pose}")
-            return
+    #     slot_id = slots_obj.find_closest_slot(pose)
+    #     if slot_id is None:
+    #         print(f"No matching slot for pose {pose}")
+    #         return
 
-        self.attached[tool_id]["slot"] = slot_id
-        self.attached[tool_id]["pose"] = slots_obj.slot_positions[slot_id]
+    #     self.attached[tool_id]["slot"] = slot_id
+    #     self.attached[tool_id]["pose"] = slots_obj.slot_positions[slot_id]
 
-            # Moving Tool Code here
+    #         # Moving Tool Code here
             
-        print(f"Tool '{tool_id}' moved to slot {slot_id}")
+    #     print(f"Tool '{tool_id}' moved to slot {slot_id}")
 
     # Depreciated probably
     # def get_tool_status(self, tool_id):

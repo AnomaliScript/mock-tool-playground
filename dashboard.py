@@ -1,10 +1,11 @@
 import customtkinter as ctk
 import cv2
 import numpy as np
-from PIL import Image, ImageTk
+from PIL import Image
 import threading
 from pupil_apriltags import Detector
 import classes
+import helpers
 
 # Load calibration
 data = np.load("camera_calibration.npz")
@@ -88,7 +89,7 @@ class PreparationPage(BasePage):
         storage.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
         for c in range(3): storage.grid_columnconfigure(c, weight=1)
 
-        ctk.CTkLabel(storage, text="storage Limit", font=("TkDefaultFont", 14, "bold")).grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=(6,4))
+        ctk.CTkLabel(storage, text="Storage Limit", font=("TkDefaultFont", 14, "bold")).grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=(6,4))
 
         self.storage_label = ctk.CTkLabel(
             storage, text=f"Current value: {self.controller.shared_data['storage']}"
@@ -129,11 +130,12 @@ class PreparationPage(BasePage):
         self.new_tool = ctk.CTkEntry(add_tool, placeholder_text="Retractor")
         self.new_tool.grid(row=2, column=0, sticky="ew", padx=6, pady=(0,8))
 
-        ctk.CTkLabel(add_tool, text="Tool ID (optional)").grid(row=3, column=0, sticky="w", padx=6)
+        ctk.CTkLabel(add_tool, text="AprilTag ID (optional)").grid(row=3, column=0, sticky="w", padx=6)
         self.new_tool_id = ctk.CTkEntry(add_tool, placeholder_text="12")
         self.new_tool_id.grid(row=4, column=0, sticky="ew", padx=6, pady=(0,8))
 
-        ctk.CTkLabel(add_tool, text="position ID (optional)").grid(row=5, column=0, sticky="w", padx=6)
+
+        ctk.CTkLabel(add_tool, text="Position ID (optional)").grid(row=5, column=0, sticky="w", padx=6)
         self.new_pos_id = ctk.CTkEntry(add_tool, placeholder_text="1")
         self.new_pos_id.grid(row=6, column=0, sticky="ew", padx=6, pady=(0,8))
 
@@ -151,7 +153,7 @@ class PreparationPage(BasePage):
         remove_tool = ctk.CTkLabel(remove_tool, text="Remove tool", font=("TkDefaultFont", 14, "bold"))
         remove_tool.grid(row=0, column=0, sticky="w", padx=6, pady=(6,4))
 
-        ctk.CTkLabel(remove_tool, text="Tool ID").grid(row=1, column=0, sticky="w", padx=6)
+        ctk.CTkLabel(remove_tool, text="AprilTag ID").grid(row=1, column=0, sticky="w", padx=6)
         self.remove_tool = ctk.CTkEntry(remove_tool, placeholder_text="ex: 0")
         self.remove_tool.grid(row=2, column=0, sticky="ew", padx=6, pady=(0,8))
 
@@ -169,7 +171,7 @@ class PreparationPage(BasePage):
         center_tag = ctk.CTkLabel(center, text="Center Tag", font=("TkDefaultFont", 14, "bold"))
         center_tag.grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=(6,4))
 
-        self.center_label = ctk.CTkLabel(center, text=f"Current center ID: {self.controller.shared_data['center']}")
+        self.center_label = ctk.CTkLabel(center, text=f"Current Center AprilTag ID: {self.controller.shared_data['center']}")
         self.center_label.grid(row=1, column=0, sticky="w", padx=6)
 
         self.center = ctk.CTkEntry(center, placeholder_text="ex: 0")
@@ -196,22 +198,15 @@ class PreparationPage(BasePage):
         # initial render of the list
         self._render_tool_list()
 
-    # Helpers (CTk-safe)
-    def _tool_map(self):
-        return self.controller.shared_data["tool_map"]
-    
-    def _pos_map(self):
-        return self.controller.shared_data["pos"]
-
     def _render_tool_list(self):
-        tm = self._tool_map()
-        pm = self._pos_map()
+        tm = helpers.get_tmap(self.controller)
+        pm = helpers.get_pmap(self.controller)
 
         lines = []
         for tid in sorted(tm.keys()):
             tool_name = tm[tid]
             pid = pm.get(tid, "<no pos>")   # safely get pid, fallback if not found
-            lines.append(f"(Tag ID: {tid}, Pos ID: {pid}): {tool_name}")
+            lines.append(f"(AprilTag ID: {tid}, Pos ID: {pid}): {tool_name}")
 
         if not lines:
             lines = ["<no tools>"]
@@ -219,29 +214,11 @@ class PreparationPage(BasePage):
         self.tool_list_text.configure(text="\n".join(lines))
 
     # def _smallest_unused_id(self):
-    #     used = set(self._tool_map().keys())
+    #     used = set(helpers.get_tmap(self.controller).keys())
     #     i = 0
     #     while i in used:
     #         i += 1
     #     return i
-
-    def _parse_tool_entry(self, s: str):
-        """
-        Accepts:
-          - 'Scalpel' -> ('Scalpel', None)
-          - 'Scalpel:12' / 'Scalpel=12' / 'Scalpel 12' -> ('Scalpel', 12) if 12 is int
-        """
-        raw = (s or "").strip()
-        if not raw:
-            return None, None
-        for sep in (":", "=", " "):
-            if sep in raw:
-                name, id_str = raw.split(sep, 1)
-                name, id_str = name.strip(), id_str.strip()
-                if not name:
-                    return None, None
-                return (name, int(id_str)) if id_str.isdigit() else (name, None)
-        return raw, None
 
     def _display_feedback(self, msg: str, ok: bool = True):
         color = "#A4E8A2" if ok else "#FF8A80"
@@ -255,7 +232,7 @@ class PreparationPage(BasePage):
             # optionally show a small feedback label
             return
 
-        tm = self.controller.shared_data["tool_map"]
+        tm = helpers.get_tmap(self.controller)
 
         # Parse optional ID
         tag_id = int(id_text) if id_text.isdigit() else None
@@ -284,7 +261,7 @@ class PreparationPage(BasePage):
 
     def _april_to_position(self, april_id):
         # get the mapping
-        pos_map = self._pos_map()
+        pos_map = helpers.get_pmap(self.controller)
 
         # look up position ID if it exists, otherwise fall back to raw
         return pos_map.get(april_id, april_id)
@@ -309,17 +286,17 @@ class PreparationPage(BasePage):
             self.feedback.configure(text="Tool name cannot be empty", text_color="#FF6666")
             return
 
-        tool_map = self.controller.shared_data["tool_map"]
+        tool_map = helpers.get_tmap(self.controller)
 
-        # parse/assign tool id
+        # parse/assign AprilTag ID
         if id_text:
             try:
                 tool_id = int(id_text)
             except ValueError:
-                self.feedback.configure(text="Tool ID must be a number", text_color="#FF6666")
+                self.feedback.configure(text="AprilTag ID must be a number", text_color="#FF6666")
                 return
             if tool_id in tool_map:
-                self.feedback.configure(text=f"Tool ID {tool_id} already exists", text_color="#FF6666")
+                self.feedback.configure(text=f"AprilTag ID {tool_id} already exists", text_color="#FF6666")
                 return
         else:
             tool_id = max(tool_map.keys(), default=-1) + 1
@@ -327,7 +304,7 @@ class PreparationPage(BasePage):
         # add to tool map
         tool_map[tool_id] = name
 
-        pos_map = self._pos_map()
+        pos_map = helpers.get_pmap(self.controller)
         if pos_id_text:
             try:
                 pos_id = int(pos_id_text)
@@ -335,7 +312,7 @@ class PreparationPage(BasePage):
                 self.feedback.configure(text="position ID must be a number", text_color="#FF6666")
                 return
 
-            # ensure uniqueness among existing position tool IDs
+            # ensure uniqueness among existing position AprilTag IDs
             if pos_id in pos_map.values():
                 self.feedback.configure(text=f"position ID {pos_id} already in use for another tool", text_color="#FF6666")
                 return
@@ -361,27 +338,27 @@ class PreparationPage(BasePage):
         self.new_pos_id.delete(0, "end")
 
         self.feedback.configure(
-            text=f"Added '{name}' (ID {tool_id}, position Tool ID {pos_id})",
+            text=f"Added '{name}' (ID {tool_id}, position AprilTag ID {pos_id})",
             text_color="#66FF66"
         )
 
     def removing_tool(self):
         id_text = self.remove_tool.get().strip()
-        tool_map_alias = self.controller.shared_data["tool_map"]
+        tool_map_alias = helpers.get_tmap(self.controller)
 
         # basic validation
         if not id_text:
-            self.feedback.configure(text="Please specify the Tool ID", text_color="#FF6666")
+            self.feedback.configure(text="Please specify the AprilTag ID", text_color="#FF6666")
             return
 
         try:
             tool_id = int(id_text)
         except ValueError:
-            self.feedback.configure(text="Tool ID must be a number", text_color="#FF6666")
+            self.feedback.configure(text="AprilTag ID must be a number", text_color="#FF6666")
             return
 
-        if tool_id not in self._tool_map():
-            self.feedback.configure(text=f"Tool ID {tool_id} not found", text_color="#FF6666")
+        if tool_id not in helpers.get_tmap(self.controller):
+            self.feedback.configure(text=f"AprilTag ID {tool_id} not found", text_color="#FF6666")
             return
 
         try:
@@ -421,7 +398,7 @@ class PreparationPage(BasePage):
             self.feedback.configure(text="position ID must be a number", text_color="#FF6666")
             return
 
-        pos_map = self._pos_map()
+        pos_map = helpers.get_pmap(self.controller)
 
         # collisions
         if april_id in pos_map:
@@ -464,7 +441,7 @@ class PreparationPage(BasePage):
         self.controller.shared_data["center"] = center_id
 
         # update label display
-        self.center_label.configure(text=f"Current center ID: {center_id}")
+        self.center_label.configure(text=f"Current Center AprilTag ID: {center_id}")
 
         # clear entry
         self.center.delete(0, "end")
@@ -504,7 +481,7 @@ class PreparationPage(BasePage):
 
                     # Display tag info
                     tool_name = tool_map.get(tag.tag_id, f"Unknown Tool {tag.tag_id}")
-                    position = self._april_to_position(tag.tag_id)
+                    position = helpers.april_to_position(self.controller, tag.tag_id)
 
                     cv2.putText(frame, 
                             f"{tool_name} (position ID: {position}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
@@ -548,7 +525,7 @@ class DashboardPage(BasePage):
         super().__init__(master, controller)
 
         self.adapter = classes.ToolAdapter(
-                    available_tools=self.controller.shared_data["tool_map"],
+                    available_tools=helpers.get_tmap(self.controller),
                     storage_limit=self.controller.shared_data["storage"]
                     )
         
@@ -612,7 +589,7 @@ class DashboardPage(BasePage):
         self.functions.grid(row=3, column=8, rowspan=3, columnspan=6, sticky="nsew", padx=40, pady=40)
 
         # API Function Widget Construction
-        api_cols = 4
+        api_cols = 5
         api_rows = 1
         for col in range(api_cols):
             self.functions.grid_columnconfigure(col, weight=1)
@@ -634,9 +611,13 @@ class DashboardPage(BasePage):
                                       command=lambda: self._panel_show("Seen Tags", self.detach_tool))
         detach_button.grid(row=0, column=2, sticky="nsew", padx=5, pady=5)
 
+        velocity_check = ctk.CTkButton(self.functions, text="Check Velocity", fg_color="#AAAAAA", 
+                                      command=lambda: self._panel_show("Seen Tags", self.check_velocity))
+        velocity_check.grid(row=0, column=3, sticky="nsew", padx=5, pady=5)
+
         settings_button = ctk.CTkButton(self.functions, text="Settings Page", fg_color="#999999", 
                                         command=lambda: self.controller.show_frame("SettingsPage"))
-        settings_button.grid(row=0, column=3, sticky="nsew", padx=5, pady=5)
+        settings_button.grid(row=0, column=4, sticky="nsew", padx=5, pady=5)
 
         # Column Protect (minimum width)
         for i in [8, 9, 10, 11, 12, 13]:
@@ -667,35 +648,32 @@ class DashboardPage(BasePage):
         builder(self.panel_body)  # builder represents the API function
 
     # Helpers (CTk-safe)
-    def _tool_map(self):
-        return self.controller.shared_data["tool_map"]
     
     def _get_position_id(self, april_id: int):
         """
         Given an AprilTag ID, return the position position ID (if mapped).
         Falls back to the raw AprilTag ID if no mapping exists.
         """
-        pos_map = self._pos_map()
+        pos_map = helpers.get_pmap(self.controller)
         return pos_map.get(april_id, april_id)
     
     def _fill_available_list(self):
         if self.controller.shared_data["show_april_mode"] != True:
-            for i in self._tool_map():
+            for i in helpers.get_tmap(self.controller):
                 self.available_list.configure(text="")
     
     def _april_to_position(self, april_id):
         # get the mapping
-        pos_map = self._pos_map()
+        pos_map = helpers.get_pmap(self.controller)
 
         # look up position ID if it exists, otherwise fall back to raw
         return pos_map.get(april_id, april_id)
                 
 
-    # adapter-obj Dynamic CTkFrame
     # API FUNCTIONS (add, remove, etc)
 
     def view_shown_tags(self, parent):
-        tm = self.controller.shared_data["tool_map"]
+        tm = helpers.get_tmap(self.controller)
         ids = sorted(self.visible_ids)
 
         title = ctk.CTkLabel(parent, text="Seen Tags (this session):", anchor="w", justify="center")
@@ -716,23 +694,55 @@ class DashboardPage(BasePage):
             return
         title = ctk.CTkLabel(parent, text="Attach Tool", anchor="w", justify="center")
         title.pack(anchor="w", pady=(0, 6))
-        ctk.CTk
-        
-        tm = self.controller.shared_data["tool_map"]
-        # One attached tool at a time
-        self.adapter.attached = {
-            # "pose": {1, 2, 3, 4, 5, 6}
-            # "position" : int
-            # "name": "scalpel"
-        }
 
-    def detach_tool(self):
+        # April Case
+        if (self.controller.shared_data["show_april_mode"]):
+            id2b_attached = ctk.CTkEntry(parent, placeholder_text="April ID")
+            id2b_attached.pack(anchor="w", pady=(0, 12))
+        # Preferred Case
+        else:
+            id2b_attached = ctk.CTkEntry(parent, placeholder_text="Preferred ID")
+            id2b_attached.pack(anchor="w", pady=(0, 12))
+
+        ctk.CTkButton(parent, text="Attach", command=self.attach_operation(id2b_attached)).pack(anchor="w", pady=(0, 12))
+        
+    def attach_operation(self, parent, id):
+        tm = helpers.get_tmap(self.controller)
+
+        # Checking for ID shananiganary
+        if ((tm.get(id, None) == None) and 
+            (tm.get(helpers.position_to_april(self.controller, None) == None))):
+            message = ctk.CTkLabel(parent, text="Invalid ID", anchor="w", justify="center")
+            message.pack(anchor="w", pady=(0, 6))
+            return
+        
+        # April Case
+        if (self.controller.shared_data["show_april_mode"]):
+            self.adapter.attached = {
+                "pos_id" : helpers.april_to_position(self.controller, id),
+                "april_id" : id,
+                "name": tm.get(id)
+            }
+        # Position Case
+        else: 
+            april_id_version = helpers.position_to_april(self.controller, id)
+            self.adapter.attached = {
+                "pos_id" : id,
+                "april_id" : april_id_version,
+                "name": tm.get(april_id_version)
+            }
+
+    def detach_tool(self, parent):
         # Delete
+        ctk.CTkButton(parent, text="Attach", command=self.detach_operation(self.adapter.attached)).pack(anchor="w", pady=(0, 12))
         self.adapter.attached = {}
-    # def move_tool(self):
-    #     print("move")
-    # def where(self):
-    #     print("where")
+
+    def detach_operation():
+        
+        print("")
+
+    def check_velocity(self, parent):
+        
 
     # MAIN DASHBOARD FUNCTIONS
     
