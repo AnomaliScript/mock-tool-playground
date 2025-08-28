@@ -742,8 +742,8 @@ class DashboardPage(BasePage):
         print("")
 
     def check_velocity(self, parent):
-        
-
+        return
+    
     # MAIN DASHBOARD FUNCTIONS
     
     def on_resize(self, event):
