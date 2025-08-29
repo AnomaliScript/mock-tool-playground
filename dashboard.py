@@ -692,8 +692,9 @@ class DashboardPage(BasePage):
         lines = [f"{tid}: {tm.get(tid, f'Unknown Tool {tid}')}" for tid in ids]
         ctk.CTkLabel(parent, text="\n".join(lines), anchor="w", justify="left").pack(anchor="w")
 
+    # Attaching, Part 1
     def attach(self, parent):
-        if self.adapter.attached:
+        if "name" in self.adapter.attached and self.adapter.attached["name"]:
             attached_tool = self.adapter.attached["name"]
             title = ctk.CTkLabel(parent, text=f"{attached_tool} is already attached", anchor="w", justify="center")
             title.pack(anchor="w", pady=(0, 6))
@@ -710,16 +711,20 @@ class DashboardPage(BasePage):
             id2b_attached = ctk.CTkEntry(parent, placeholder_text="Preferred ID")
             id2b_attached.pack(anchor="w", pady=(0, 12))
 
-        ctk.CTkButton(parent, text="Attach", command=self.attach_operation(id2b_attached)).pack(anchor="w", pady=(0, 12))
+        # Creating a label that attach_operation can refer to
+        self.attach_feedback = ctk.CTkLabel(parent, text="", anchor="w", justify="center")
+        self.attach_feedback.pack(anchor="w", pady=(0, 6))
+
+        ctk.CTkButton(parent, text="Attach", command=lambda: self.attach_operation(id2b_attached)).pack(anchor="w", pady=(0, 12))
         
-    def attach_operation(self, parent, id):
+    # Attaching, Part 2
+    def attach_operation(self, id):
         tm = helpers.get_tmap(self.controller)
 
         # Checking for ID shananiganary
         if ((tm.get(id, None) == None) and 
             (tm.get(helpers.position_to_april(self.controller, None) == None))):
-            message = ctk.CTkLabel(parent, text="Invalid ID", anchor="w", justify="center")
-            message.pack(anchor="w", pady=(0, 6))
+            self.attach_feedback.configure(text="Invalid ID", text_color="#FF6666")
             return
         
         # April Case
@@ -743,8 +748,8 @@ class DashboardPage(BasePage):
         ctk.CTkButton(parent, text="Attach", command=self.detach_operation(self.adapter.attached)).pack(anchor="w", pady=(0, 12))
         self.adapter.attached = {}
 
-    def detach_operation():
-        
+    def detach_operation(attached_dict):
+        # TODO: employ motors and sensors to detach the tool
         print("")
 
     def check_velocity(self, parent):
