@@ -437,6 +437,12 @@ class PreparationPage(BasePage):
             self.feedback.configure(text="Center ID must be a number", text_color="#FF6666")
             return
 
+        # check if the proposed center_id is already set to a tool
+        tm = helpers.get_tmap(self.controller)
+        if center_id in tm:
+            self.feedback.configure(text=f"ID {center_id} is already in use", text_color="#FF6666")
+            return
+
         # update shared data
         self.controller.shared_data["center"] = center_id
 
