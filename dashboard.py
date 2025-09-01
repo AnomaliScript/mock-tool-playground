@@ -23,13 +23,6 @@ obj_points = np.array([
     [-tag_size/2, -tag_size/2, 0]
 ], dtype=np.float32)
 
-# Define tool lookup table
-tool_map = {
-    0: "Scalpel", 1: "Forceps", 2: "Suction Tip", 3: "Probe",
-    4: "Camera Tool", 5: "Retractor", 6: "Surgical Scissors", 7: "Hemostat"
-    # ... add more if needed
-}
-
 # Open webcam globally
 cap = cv2.VideoCapture(0)
 
@@ -61,10 +54,7 @@ class PreparationPage(BasePage):
 
         # tool defaults
         self.controller.shared_data.setdefault("storage", 6)
-        self.controller.shared_data.setdefault("tool_map", {
-            0: "Scalpel", 1: "Forceps", 2: "Suction Tip", 3: "Probe",
-            4: "Camera Tool", 5: "Retractor", 6: "Surgical Scissors", 7: "Hemostat"
-        })
+        self.controller.shared_data.setdefault("tool_map", {})
         self.controller.shared_data.setdefault("center", "")
         # position map (AprilTag: position)
         self.controller.shared_data.setdefault("pos", {})
@@ -486,7 +476,8 @@ class PreparationPage(BasePage):
                                     0.02)
 
                     # Display tag info
-                    tool_name = tool_map.get(tag.tag_id, f"Unknown Tool {tag.tag_id}")
+                    tm = helpers.get_tmap(self.controller)
+                    tool_name = tm.get(tag.tag_id, f"Unknown Tool {tag.tag_id}")
                     position = helpers.april_to_position(self.controller, tag.tag_id)
 
                     cv2.putText(frame, 
@@ -622,7 +613,7 @@ class DashboardPage(BasePage):
         velocity_check.grid(row=0, column=3, sticky="nsew", padx=5, pady=5)
 
         settings_button = ctk.CTkButton(self.functions, text="Settings Page", fg_color="#999999", 
-                                        command=lambda: self.controller.show_frame("SettingsPage"))
+                                        command=lambda: self.controller.show_frame("PreparationPage"))
         settings_button.grid(row=0, column=4, sticky="nsew", padx=5, pady=5)
 
         # Column Protect (minimum width)
@@ -797,9 +788,12 @@ class DashboardPage(BasePage):
                                     0.02)
 
                     # Display tag info
-                    # Checking if the April Mode is on
-                    tool_name = tool_map.get(tag.tag_id, f"Unknown Tool {tag.tag_id}")
+                    tm = helpers.get_tmap(self.controller)
+                    tool_name = tm.get(tag.tag_id, f"Unknown Tool {tag.tag_id}")
                     id_display = tag.tag_id
+
+                    # Checking if the April Mode is on
+                    
                     if self.controller.shared_data["show_april_mode"]:
                         helping_text = "April_ID"
                     else:
@@ -830,7 +824,7 @@ class DashboardPage(BasePage):
 
             # Wait until label is laid out
             if hasattr(self, "label_width") and hasattr(self, "label_height"):
-                resized_img = self.resize_to_fit_4_3(img, self.label_width, self.label_height)
+                resized_img = helpers.resize_to_fit_4_3(img, self.label_width, self.label_height)
                 self.imgtk = ctk.CTkImage(light_image=resized_img, size=resized_img.size)
                 self.camera_label.configure(image=self.imgtk)
 
@@ -839,19 +833,6 @@ class DashboardPage(BasePage):
 
         # Schedule next frame update ~60 FPS
         self.camera_label.after(15, self.update_video)
-
-    # Equation: width = height * aspect_ratio
-    def resize_to_fit_4_3(self, image, max_w, max_h):
-        target_aspect = 4 / 3
-        new_w = max_w
-        new_h = int(max_w / target_aspect)
-        if new_h > max_h:
-            new_h = max_h
-            new_w = int(max_h * target_aspect)
-        if new_w > max_w:
-            new_w = max_w
-            new_h = int(max_w / target_aspect)
-        return image.resize((new_w, new_h))
 
     def tkraise(self, aboveThis=None):
 
@@ -864,13 +845,6 @@ class DashboardPage(BasePage):
     def on_hide(self):
         # Stop webcam loop when page is hidden
         self.stop_camera = True
-
-
-class SettingsPage(BasePage):
-    def __init__(self, master, controller):
-        super().__init__(master, controller)
-        ctk.CTkLabel(self, text="Settings Page (empty)").pack(pady=20)
-        ctk.CTkButton(self, text="Settings Page", fg_color="#999999", command=lambda: self.controller.show_frame("DashboardPage")).pack(pady=20)
 
 
 # App Controller
@@ -892,11 +866,12 @@ class App(ctk.CTk):
         # tool_map
         # center
         # show_april_mode (boolean)
+        # revisit_settings (boolean)
         # pos
 
         # Load page frames into self.container
         self.frames = {}
-        for PageClass in (PreparationPage, DashboardPage, SettingsPage):
+        for PageClass in (PreparationPage, DashboardPage):
             page_name = PageClass.__name__
             frame = PageClass(self.container, self)
             self.frames[page_name] = frame
