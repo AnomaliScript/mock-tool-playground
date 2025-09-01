@@ -447,12 +447,13 @@ class PreparationPage(BasePage):
     # Called whenever this page is shown, which works well for displaying the camera
     def tkraise(self, aboveThis=None):
         self.stop_camera = False
-        self.update_camera_view()
+        self.update_video()
         super().tkraise(aboveThis)
 
-    def update_camera_view(self):
+    def update_video(self):
         if self.stop_camera:
             return
+    
         ret, frame = cap.read()
         if ret:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -494,7 +495,7 @@ class PreparationPage(BasePage):
             self.imgtk = ctk.CTkImage(light_image=img, size=(640, 480))
             self.camera_label.configure(image=self.imgtk)
 
-        self.after(30, self.update_camera_view)
+        self.after(15, self.update_video)
     
     # Hiding the camera upon exiting this page
     def on_hide(self):
@@ -753,6 +754,11 @@ class DashboardPage(BasePage):
         self.label_width = event.width
         self.label_height = event.height
 
+    def tkraise(self, aboveThis=None):
+        self.stop_camera = False
+        self.update_video()
+        super().tkraise(aboveThis)
+
     def update_video(self):
         if self.stop_camera:
             return
@@ -833,14 +839,6 @@ class DashboardPage(BasePage):
 
         # Schedule next frame update ~60 FPS
         self.camera_label.after(15, self.update_video)
-
-    def tkraise(self, aboveThis=None):
-
-        # Start webcam update loop
-        self.stop_camera = False
-        self.update_video()
-
-        super().tkraise(aboveThis)
 
     def on_hide(self):
         # Stop webcam loop when page is hidden
