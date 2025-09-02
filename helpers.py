@@ -8,13 +8,13 @@ def april_to_position(controller_param, april_id):
         # get the mapping
         pos_map = get_pmap(controller_param)
 
-        # look up position ID if it exists, otherwise fall back to raw
-        return pos_map.get(april_id, april_id)
+        # look up position ID if it exists, otherwise return None
+        return pos_map.get(april_id, None)
 
 def position_to_april(controller_param, pos_id):
 
-        # look up april ID if it exists, otherwise fall back to raw
-        return next((k for k, v in get_pmap(controller_param).items() if v == pos_id), pos_id)
+        # look up april ID if it exists, otherwise return None
+        return next((k for k, v in get_pmap(controller_param).items() if v == pos_id), None)
 
 # Equation: width = height * aspect_ratio
 def resize_to_fit_4_3(image, max_w, max_h):
@@ -29,8 +29,9 @@ def resize_to_fit_4_3(image, max_w, max_h):
         new_h = int(max_w / target_aspect)
     return image.resize((new_w, new_h))
 
-# VISION
+# VISION (wip)
 
+import customtkinter as ctk
 import cv2
 import numpy as np
 from PIL import Image
@@ -62,7 +63,7 @@ stop_camera = False
 
 def update_video(self):
     # stop gate
-    if getattr(self, "stop_camera", False):
+    if stop_camera:
         return
 
     ret, frame = cap.read()

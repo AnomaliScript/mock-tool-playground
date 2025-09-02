@@ -34,6 +34,8 @@ class BasePage(ctk.CTkFrame):
     def __init__(self, master, controller):
         super().__init__(master)
         self.controller = controller
+        self.controller.shared_data.setdefault("show_april_mode", True)
+        self.controller.shared_data["show_april_mode"] = True
 
 class PreparationPage(BasePage):
     def __init__(self, master, controller):
@@ -174,9 +176,15 @@ class PreparationPage(BasePage):
         self.feedback = ctk.CTkLabel(left, text="", text_color="#FFCC66")
         self.feedback.grid(row=4, column=0, columnspan=2, sticky="nsew", padx=6, pady=(2,4))
 
-        # ========= row 5: Login =========
+        # ========= row 5 col 0: Login =========
         login = ctk.CTkButton(left, text="Login", command=self.login)
-        login.grid(row=5, column=0, columnspan=2, sticky="ew", padx=10, pady=(0,10))
+        login.grid(row=5, column=0, sticky="ew", padx=10, pady=(0,10))
+
+        # ========= row 5 col 1: Switch from April mode to Position mode (IDs) =========
+        self.switch = ctk.CTkButton(left, 
+                               text=f"Switch to {"April" if self.controller.shared_data["show_april_mode"] else "Position"} mode", 
+                               command=self.switch)
+        self.switch.grid(row=5, column=1, sticky="ew", padx=10, pady=(0,10))
 
         # --- right: camera ---
         self.stop_camera = False
@@ -248,13 +256,6 @@ class PreparationPage(BasePage):
         # Clear inputs
         self.new_tool.delete(0, "end")
         self.new_tool_id.delete(0, "end")
-
-    def _april_to_position(self, april_id):
-        # get the mapping
-        pos_map = helpers.get_pmap(self.controller)
-
-        # look up position ID if it exists, otherwise fall back to raw
-        return pos_map.get(april_id, april_id)
 
     def submit_storage(self):
         val = (self.hold_num.get() or "").strip()
@@ -412,7 +413,6 @@ class PreparationPage(BasePage):
         # success feedback
         self.feedback.configure(text=f"Added AprilTag ID {april_id} as ID {pos_id}", text_color="#66FF66")
 
-
     def submit_center(self):
         value = self.center.get().strip()
 
@@ -443,6 +443,13 @@ class PreparationPage(BasePage):
         self.center.delete(0, "end")
 
         self.feedback.configure(text=f"Center ID set to {center_id}", text_color="#66FF66")
+
+    def switch(self):
+        if self.controller.shared_data["show_april_mode"]:
+            self.controller.shared_data["show_april_mode"] = False
+        else: 
+            self.controller.shared_data["show_april_mode"] = True
+        self.switch.configure(text=f"Switch to {"Position" if self.controller.shared_data["show_april_mode"] else "April"} mode")
 
     # Called whenever this page is shown, which works well for displaying the camera
     def tkraise(self, aboveThis=None):
@@ -478,16 +485,29 @@ class PreparationPage(BasePage):
 
                     # Display tag info
                     tm = helpers.get_tmap(self.controller)
-                    tool_name = tm.get(tag.tag_id, f"Unknown Tool {tag.tag_id}")
-                    position = helpers.april_to_position(self.controller, tag.tag_id)
+                    tool_name = tm.get(tag.tag_id, f"Unknown Tool {tag.tag_id}") # Unknown/Unmapped IDs will naturally be April IDs
+                    id_display = tag.tag_id
+
+                    # Checking if the ID is Center (important)
+                    if (id_display == self.controller.shared_data["center"]):
+                        helping_text = "Center"
+                        tool_name = ""
+                    else:
+                        # Checking if the April Mode is on
+                        if self.controller.shared_data["show_april_mode"]:
+                            helping_text = "April_ID"
+                        else:
+                            helping_text = "Position_ID"
+                            pm = helpers.get_pmap(self.controller)
+                            id_display = pm.get(tag.tag_id, "N/A")
 
                     cv2.putText(frame, 
-                            f"{tool_name} (position ID: {position}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
-                            (int(tag.corners[0][0]), int(tag.corners[0][1]) - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 
-                            0.5, 
-                            (255, 100, 0), 
-                            2)
+                                f"{tool_name} ({helping_text}: {id_display}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
+                                (int(tag.corners[0][0]), int(tag.corners[0][1]) - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 
+                                0.5, 
+                                (255, 100, 0), 
+                                2)
 
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(frame_rgb)
@@ -508,9 +528,6 @@ class PreparationPage(BasePage):
         Setting display poserence for showing tools with their april_ids, 
         not their position_ids unless told otherwise
         """
-
-        self.controller.shared_data.setdefault("show_april_mode", True)
-        self.controller.shared_data["show_april_mode"] = True
 
 
 
@@ -647,25 +664,25 @@ class DashboardPage(BasePage):
 
     # Helpers (CTk-safe)
     
-    def _get_position_id(self, april_id: int):
-        """
-        Given an AprilTag ID, return the position position ID (if mapped).
-        Falls back to the raw AprilTag ID if no mapping exists.
-        """
-        pos_map = helpers.get_pmap(self.controller)
-        return pos_map.get(april_id, april_id)
+    # def _get_position_id(self, april_id: int):
+    #     """
+    #     Given an AprilTag ID, return the position position ID (if mapped).
+    #     Falls back to the raw AprilTag ID if no mapping exists.
+    #     """
+    #     pos_map = helpers.get_pmap(self.controller)
+    #     return pos_map.get(april_id, april_id)
     
     def _fill_available_list(self):
         if self.controller.shared_data["show_april_mode"] != True:
-            for i in helpers.get_tmap(self.controller):
+            for _ in helpers.get_tmap(self.controller):
                 self.available_list.configure(text="")
     
-    def _april_to_position(self, april_id):
-        # get the mapping
-        pos_map = helpers.get_pmap(self.controller)
+    # def _april_to_position(self, april_id):
+    #     # get the mapping
+    #     pos_map = helpers.get_pmap(self.controller)
 
-        # look up position ID if it exists, otherwise fall back to raw
-        return pos_map.get(april_id, april_id)
+    #     # look up position ID if it exists, otherwise fall back to raw
+    #     return pos_map.get(april_id, april_id)
                 
 
     # API FUNCTIONS (add, remove, etc)
@@ -686,62 +703,89 @@ class DashboardPage(BasePage):
 
     # Attaching, Part 1
     def attach(self, parent):
-        if "name" in self.adapter.attached and self.adapter.attached["name"]:
-            attached_tool = self.adapter.attached["name"]
-            title = ctk.CTkLabel(parent, text=f"{attached_tool} is already attached", anchor="w", justify="center")
-            title.pack(anchor="w", pady=(0, 6))
-            return
+        
         title = ctk.CTkLabel(parent, text="Attach Tool", anchor="w", justify="center")
         title.pack(anchor="w", pady=(0, 6))
 
         # April Case
         if (self.controller.shared_data["show_april_mode"]):
-            id2b_attached = ctk.CTkEntry(parent, placeholder_text="April ID")
-            id2b_attached.pack(anchor="w", pady=(0, 12))
+            self.id2b_attached = ctk.CTkEntry(parent, placeholder_text="April ID")
+            self.id2b_attached.pack(anchor="w", pady=(0, 12))
         # Preferred Case
         else:
-            id2b_attached = ctk.CTkEntry(parent, placeholder_text="Preferred ID")
-            id2b_attached.pack(anchor="w", pady=(0, 12))
+            self.id2b_attached = ctk.CTkEntry(parent, placeholder_text="Preferred ID")
+            self.id2b_attached.pack(anchor="w", pady=(0, 12))
 
         # Creating a label that attach_operation can refer to
         self.attach_feedback = ctk.CTkLabel(parent, text="", anchor="w", justify="center")
         self.attach_feedback.pack(anchor="w", pady=(0, 6))
 
-        ctk.CTkButton(parent, text="Attach", command=lambda: self.attach_operation(id2b_attached)).pack(anchor="w", pady=(0, 12))
+        ctk.CTkButton(parent, text="Attach", command=lambda: self.attach_operation()).pack(anchor="w", pady=(0, 12))
         
     # Attaching, Part 2
-    def attach_operation(self, id):
+    def attach_operation(self):
         tm = helpers.get_tmap(self.controller)
+        id = self.id2b_attached.get().strip()
 
-        # Checking for ID shananiganary
-        if ((tm.get(id, None) == None) and 
-            (tm.get(helpers.position_to_april(self.controller, None) == None))):
+        # Checking if ID alr exsits
+        if "name" in self.adapter.attached and self.adapter.attached["name"]:
+            self.attach_feedback.configure(text="A tool is already attached", text_color="#FF6666")
+            return
+        # Checking if ID is an integer
+        if id:
+            try:
+                converted_id = int(id)
+            except ValueError:
+                self.attach_feedback.configure(text="ID must be a number", text_color="#FF6666")
+                return
+        else:
+            self.attach_feedback.configure(text="Please type in a number", text_color="#FF6666")
+            return
+        
+        # TROUBLESHOOTING
+        # print(f"{tm}")
+        # print(f"{id}")
+        # print(f"{helpers.position_to_april(self.controller, converted_id)}")
+        # print(f"{self.controller.shared_data["show_april_mode"]}")
+        # print(f"second case: {tm.get(helpers.position_to_april(self.controller, converted_id), None) == None}")
+        # print(f"final: {(self.controller.shared_data["show_april_mode"] == False) and (tm.get(helpers.position_to_april(self.controller, converted_id), None) == None)}")
+        # print(f"dne (april): {tm.get(converted_id, None) == None}, dne (pos): {(tm.get(helpers.position_to_april(self.controller, converted_id), None) == None)}")
+        
+        # Checking if the ID is mapped to a tool (April and Positoin cases, respectively)
+        if ((self.controller.shared_data["show_april_mode"] and (tm.get(converted_id, None) == None)) or 
+            (self.controller.shared_data["show_april_mode"] == False) and (helpers.position_to_april(self.controller, converted_id) == None)):
             self.attach_feedback.configure(text="Invalid ID", text_color="#FF6666")
             return
         
         # April Case
         if (self.controller.shared_data["show_april_mode"]):
             self.adapter.attached = {
-                "pos_id" : helpers.april_to_position(self.controller, id),
-                "april_id" : id,
-                "name": tm.get(id)
+                "pos_id" : helpers.april_to_position(self.controller, converted_id),
+                "april_id" : converted_id,
+                "name": tm.get(converted_id)
             }
+            self.attach_feedback.configure(text=f"ID {self.adapter.attached["name"]} attached", text_color="#66FF66")
         # Position Case
         else: 
-            april_id_version = helpers.position_to_april(self.controller, id)
+            april_id_version = helpers.position_to_april(self.controller, converted_id)
             self.adapter.attached = {
-                "pos_id" : id,
+                "pos_id" : converted_id,
                 "april_id" : april_id_version,
                 "name": tm.get(april_id_version)
             }
+            self.attach_feedback.configure(text=f"ID {self.adapter.attached["name"]} attached", text_color="#66FF66")
+
+        print(f"{self.adapter.attached}")
 
     def detach_tool(self, parent):
         # Delete
-        ctk.CTkButton(parent, text="Attach", command=self.detach_operation(self.adapter.attached)).pack(anchor="w", pady=(0, 12))
-        self.adapter.attached = {}
+        print(f"{self.adapter.attached}")
+        ctk.CTkButton(parent, text="Attach", command=self.detach_operation()).pack(anchor="w", pady=(0, 12))
 
-    def detach_operation(attached_dict):
+    def detach_operation(self):
         # TODO: employ motors and sensors to detach the tool
+
+        self.adapter.attached = {}
         print("")
 
     def check_velocity(self, parent):
@@ -795,23 +839,21 @@ class DashboardPage(BasePage):
 
                     # Display tag info
                     tm = helpers.get_tmap(self.controller)
-                    tool_name = tm.get(tag.tag_id, f"Unknown Tool {tag.tag_id}")
+                    tool_name = tm.get(tag.tag_id, f"Unknown Tool {tag.tag_id}") # Unknown/Unmapped IDs will naturally be April IDs
                     id_display = tag.tag_id
 
-                    # Checking if the April Mode is on
-                    
-                    if self.controller.shared_data["show_april_mode"]:
-                        helping_text = "April_ID"
-                    else:
-                        helping_text = "Position_ID"
-                        pos_map = self.controller.shared_data["pos"]
-                        if pos_map[tag.tag_id]:
-                            id_display = pos_map[tag.tag_id]
-
-                    # Checking if the ID is Center
+                    # Checking if the ID is Center (important)
                     if (id_display == self.controller.shared_data["center"]):
                         helping_text = "Center"
                         tool_name = ""
+                    else:
+                        # Checking if the April Mode is on
+                        if self.controller.shared_data["show_april_mode"]:
+                            helping_text = "April_ID"
+                        else:
+                            helping_text = "Position_ID"
+                            pm = helpers.get_pmap(self.controller)
+                            id_display = pm.get(tag.tag_id, "N/A")
 
                     cv2.putText(frame, 
                                 f"{tool_name} ({helping_text}: {id_display}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
