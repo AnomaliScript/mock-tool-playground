@@ -4,6 +4,8 @@ import numpy as np
 from PIL import Image
 import threading
 from pupil_apriltags import Detector
+from collections import defaultdict, deque
+import time
 import classes
 import helpers
 
@@ -210,13 +212,6 @@ class PreparationPage(BasePage):
             lines = ["<no tools>"]
 
         self.tool_list_text.configure(text="\n".join(lines))
-
-    # def _smallest_unused_id(self):
-    #     used = set(helpers.get_tmap(self.controller).keys())
-    #     i = 0
-    #     while i in used:
-    #         i += 1
-    #     return i
 
     def _display_feedback(self, msg: str, ok: bool = True):
         color = "#A4E8A2" if ok else "#FF8A80"
@@ -524,10 +519,6 @@ class PreparationPage(BasePage):
 
     def login(self):
         self.controller.show_frame("DashboardPage")
-        """
-        Setting display poserence for showing tools with their april_ids, 
-        not their position_ids unless told otherwise
-        """
 
 
 
@@ -546,13 +537,19 @@ class DashboardPage(BasePage):
         
         self.detector = Detector(families="tag25h9")
         
-        # Cutting up the screen (dimensioning)
+        # Initialize tag history for velocity calculations
+        self.tag_hist = defaultdict(lambda: deque(maxlen=10))
+        
+        # Store current velocities for visible tags
+        self.current_velocities = {}
+        
+        # UI: Cutting up the screen (dimensioning)
         for i in range(14):
             self.grid_columnconfigure(i, weight=1)
         for i in range(6):
             self.grid_rowconfigure(i, weight=1)
 
-        # Background Creation (originally for debugging, but I want to keep it tbh)
+        # ALSO UI: Background Creation (originally for debugging, but I want to keep it tbh)
         cols = 14
         rows = 6
 
@@ -583,25 +580,39 @@ class DashboardPage(BasePage):
 
         # Text Widgets (6x6 tiles covered up)
         # adapter_obj Dynamic CTk Frame; API functions that use this CTkFrame are defined further below
-        self.panel = ctk.CTkFrame(self, fg_color="#A0D4FF")  # same color as before
-        self.panel.grid(row=0, column=8, rowspan=3, columnspan=3, sticky="nsew", padx=40, pady=40)
+        self.panel = ctk.CTkFrame(self, fg_color="#FFBC9A")  # same color as before
+        self.panel.grid(row=0, column=8, rowspan=2, columnspan=2, sticky="nsew", padx=10, pady=10)
 
         # optional: a title in the panel
         self.panel_title = ctk.CTkLabel(self.panel, text="Dashboard Panel", font=("TkDefaultFont", 16, "bold"))
         self.panel_title.pack(pady=(8, 6))
+
+        self.emergency_stop = ctk.CTkFrame(self, fg_color="#FF0000")  # same color as before
+        self.emergency_stop.grid(row=2, column=8, rowspan=2, columnspan=3, sticky="nsew", padx=10, pady=10)
 
         # Output for API methods
         self.panel_body = ctk.CTkFrame(self.panel, fg_color="transparent")
         self.panel_body.pack(fill="both", expand=True, padx=10, pady=10)
 
         # Available Tools List
-        available_tools = ""
-        self.available_list = ctk.CTkLabel(self, fg_color="#6655FF", text=available_tools, anchor="center")
-        self.available_list.grid(row=0, column=11, rowspan=3, columnspan=3, sticky="nsew", padx=40, pady=40)
+        self.available_list = ctk.CTkLabel(self, fg_color="#F9785C", text="", anchor="center")
+        self.available_list.grid(row=2, column=11, rowspan=2, columnspan=3, sticky="nsew", padx=10, pady=10)
+
+        ctk.CTkLabel(self.available_list, text="Current tools available:", font=("TkDefaultFont", 14, "bold")).grid(row=0, column=0, sticky="w", padx=6, pady=(6,4))
+
+        self.available_list_frame = ctk.CTkScrollableFrame(self.available_list, fg_color="#F9785C")
+        self.available_list_frame.grid(row=1, column=0, sticky="nsew", padx=6, pady=6)
+
+        self.available_list_frame_text = ctk.CTkLabel(self.available_list_frame, fg_color="#F9785C", justify="left", anchor="w")
+        self.available_list_frame_text.grid(row=0, column=0, sticky="w", padx=6, pady=6)
+
+        # Current Tool Description (velocity included)
+        self.current_tool = ctk.CTkLabel(self, fg_color="#5A4C7A", text="", anchor="center")
+        self.current_tool.grid(row=0, column=10, rowspan=2, columnspan=4, sticky="nsew", padx=10, pady=10)
 
         # API Function Widget
         self.functions = ctk.CTkFrame(self, fg_color="#B4B4B4")
-        self.functions.grid(row=3, column=8, rowspan=3, columnspan=6, sticky="nsew", padx=40, pady=40)
+        self.functions.grid(row=4, column=8, rowspan=2, columnspan=6, sticky="nsew", padx=10, pady=10)
 
         # API Function Widget Construction
         api_cols = 5
@@ -640,7 +651,7 @@ class DashboardPage(BasePage):
 
         # Camera Time! (6x8 tiles covered up)
         # DISPLAY RESOLUTION: 4x3
-        self.camera_label = ctk.CTkLabel(self, anchor="center")
+        self.camera_label = ctk.CTkLabel(self, anchor="center", text="")
         self.camera_label.grid(row=0, column=0, rowspan=6, columnspan=8, sticky="nsew", padx=40, pady=40)
 
         self.stop_camera = True  # Start stopped
@@ -652,6 +663,21 @@ class DashboardPage(BasePage):
         # Start update loop in thread
         self.update_thread = threading.Thread(target=self.update_video, daemon=True)
         self.update_thread.start()
+
+    def _render_dshb_tool_list(self):
+        tm = helpers.get_tmap(self.controller)
+        pm = helpers.get_pmap(self.controller)
+
+        lines = []
+        for tid in sorted(tm.keys()):
+            tool_name = tm[tid]
+            pid = pm.get(tid, "<no pos>")
+            lines.append(f"(AprilTag ID: {tid}, Pos ID: {pid}): {tool_name}")
+
+        if not lines:
+            lines = ["<no tools>"]
+
+        self.available_list_frame_text.configure(text="\n".join(lines))
 
     def _panel_clear(self):
         for w in self.panel_body.winfo_children():
@@ -671,19 +697,6 @@ class DashboardPage(BasePage):
     #     """
     #     pos_map = helpers.get_pmap(self.controller)
     #     return pos_map.get(april_id, april_id)
-    
-    def _fill_available_list(self):
-        if self.controller.shared_data["show_april_mode"] != True:
-            for _ in helpers.get_tmap(self.controller):
-                self.available_list.configure(text="")
-    
-    # def _april_to_position(self, april_id):
-    #     # get the mapping
-    #     pos_map = helpers.get_pmap(self.controller)
-
-    #     # look up position ID if it exists, otherwise fall back to raw
-    #     return pos_map.get(april_id, april_id)
-                
 
     # API FUNCTIONS (add, remove, etc)
 
@@ -784,13 +797,134 @@ class DashboardPage(BasePage):
 
     def detach_operation(self):
         # TODO: employ motors and sensors to detach the tool
-
         self.adapter.attached = {}
-        print("")
 
+    # Velocity Evaluation
     def check_velocity(self, parent):
-        return
-    
+        title = ctk.CTkLabel(parent, text="Check Velocity", anchor="w", justify="center")
+        title.pack(anchor="w", pady=(0, 6))
+
+        # Create input field for tag ID
+        if (self.controller.shared_data["show_april_mode"]):
+            self.velocity_tag_id = ctk.CTkEntry(parent, placeholder_text="April ID")
+            self.velocity_tag_id.pack(anchor="w", pady=(0, 12))
+        else:
+            self.velocity_tag_id = ctk.CTkEntry(parent, placeholder_text="Position ID")
+            self.velocity_tag_id.pack(anchor="w", pady=(0, 12))
+
+        # Create button to check velocity
+        ctk.CTkButton(parent, text="Check Velocity", command=lambda: self.retrieve_velocity()).pack(anchor="w", pady=(0, 12))
+
+    # Velocity Calculation (ahhh trig)
+    def rvec_to_R(self, rvec):
+        R, _ = cv2.Rodrigues(rvec)
+        return R
+
+    def calc_angular_velocity(self, R_prev, R_cur, dt):
+        """
+        Approx angular velocity (rad/s) using matrix log of relative rotation.
+        omega_vec points along rotation axis, magnitude = angular speed.
+        """
+        R_delta = R_cur @ R_prev.T
+        # clamp numerical errors
+        tr = np.clip((np.trace(R_delta) - 1) / 2.0, -1.0, 1.0)
+        angle = np.arccos(tr)
+        if dt <= 1e-6 or angle < 1e-6:
+            return np.zeros(3)
+        # rotation axis from skew-symmetric part
+        w = (R_delta - R_delta.T) / (2*np.sin(angle))
+        axis = np.array([w[2,1], w[0,2], w[1,0]])  # (wx, wy, wz)
+        return axis * (angle / dt)  # rad/s
+
+    def organize_velocity_data(self, tag_id: int, rvec, tvec):
+        """
+        Returns (linear_vel_mps[3], angular_vel_radps[3]) in the camera frame.
+        Units assume your obj_points are in meters -> tvec is meters.
+        """
+        now = time.time()
+        R = self.rvec_to_R(rvec)
+        hist = self.tag_hist[tag_id]
+
+        # If we have a previous sample, compute finite differences
+        if len(hist) > 0:
+            t_prev, p_prev, R_prev = hist[-1]
+            dt = now - t_prev
+            if dt > 1e-3:
+                v = (tvec.reshape(3) - p_prev) / dt                    # m/s in camera frame
+                w = self.calc_angular_velocity(R_prev, R, dt)          # rad/s
+                # Debug: print velocity when it's non-zero
+                if np.linalg.norm(v) > 0.001:  # Only print if velocity > 1mm/s
+                    print(f"Tag {tag_id}: v={v}, w={w}, dt={dt:.3f}s")
+            else:
+                v = np.zeros(3); w = np.zeros(3)
+        else:
+            v = np.zeros(3); w = np.zeros(3)
+
+        # push current sample
+        hist.append((now, tvec.reshape(3), R))
+        
+        # Store current velocity for this tag
+        self.current_velocities[tag_id] = (v, w)
+
+    def retrieve_velocity(self):
+        """Display velocity for a specific tag using current velocity data"""
+        tag_id_input = self.velocity_tag_id.get().strip()
+        
+        # Checking for silly goober IDs
+        if not tag_id_input:
+            self.current_tool.configure(text="Please enter a tag ID")
+            return
+            
+        try:
+            tag_id = int(tag_id_input)
+        except ValueError:
+            self.current_tool.configure(text="Tag ID must be a number")
+            return
+        
+        # Check if tag exists in tool map
+        tm = helpers.get_tmap(self.controller)
+        if tag_id not in tm:
+            self.current_tool.configure(text=f"Tag ID {tag_id} not found in tool map")
+            return
+        
+        # Check if tag is currently visible on screen
+        if tag_id not in self.visible_ids:
+            tool_name = tm[tag_id]
+            self.current_tool.configure(text=f"{tool_name} (ID: {tag_id})\nTag not currently visible on screen")
+            return
+        
+        # Check if we have current velocity data for this tag
+        if tag_id not in self.current_velocities:
+            tool_name = tm[tag_id]
+            self.current_tool.configure(text=f"{tool_name} (ID: {tag_id})\nNo velocity data available yet")
+            return
+        
+        # Get current velocity data and display it
+        v, w = self.current_velocities[tag_id]
+        self._display_velocity_data(tag_id, v, w)
+
+    def _display_velocity_data(self, tag_id: int, v: np.ndarray, w: np.ndarray):
+        """Helper method to display formatted velocity data"""
+        # Check if tag exists in tool map
+        tm = helpers.get_tmap(self.controller)
+        if tag_id not in tm:
+            self.current_tool.configure(text=f"Tag ID {tag_id} not found in tool map")
+            return
+        
+        # Get tool name
+        tool_name = tm[tag_id]
+        
+        # Format velocity data in an organized manner
+        vx, vy, vz = v
+        wx, wy, wz = w
+        
+        velocity_text = f"{tool_name} (ID: {tag_id})\n"
+        velocity_text += f"Linear Velocity: ({vx:.3f}, {vy:.3f}, {vz:.3f}) m/s\n"
+        velocity_text += f"Angular Velocity: ({wx:.3f}, {wy:.3f}, {wz:.3f}) rad/s\n"
+        velocity_text += f"Speed: {np.linalg.norm(v):.3f} m/s"
+        
+        self.current_tool.configure(text=velocity_text)
+
     # MAIN DASHBOARD FUNCTIONS
     
     def on_resize(self, event):
@@ -803,7 +937,9 @@ class DashboardPage(BasePage):
         self.update_video()
         super().tkraise(aboveThis)
 
-    def update_video(self):
+    def update_video(self): # Primary use is to update video, used for other things also
+        self._render_dshb_tool_list() # Used here to refresh the available tools
+
         if self.stop_camera:
             return
 
@@ -836,6 +972,9 @@ class DashboardPage(BasePage):
                                     rvec, 
                                     tvec, 
                                     0.02)
+
+                    # VELOCITY
+                    self.organize_velocity_data(tid, rvec, tvec)
 
                     # Display tag info
                     tm = helpers.get_tmap(self.controller)
