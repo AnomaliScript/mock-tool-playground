@@ -542,6 +542,9 @@ class DashboardPage(BasePage):
         
         # Store current velocities for visible tags
         self.current_velocities = {}
+        self.selected_velocity_tag = None          # which tag’s velocity to show live
+        self.velocity_updated_at = {}              # tid -> last v,w update time (seconds)
+        self.velocity_stale_after = 0.30
         
         # UI: Cutting up the screen (dimensioning)
         for i in range(14):
@@ -814,7 +817,7 @@ class DashboardPage(BasePage):
 
         # Create button to check velocity
         ctk.CTkButton(parent, text="Check Velocity", command=lambda: self.retrieve_velocity()).pack(anchor="w", pady=(0, 12))
-
+sa
     # Velocity Calculation (ahhh trig)
     def rvec_to_R(self, rvec):
         R, _ = cv2.Rodrigues(rvec)
@@ -865,6 +868,7 @@ class DashboardPage(BasePage):
         
         # Store current velocity for this tag
         self.current_velocities[tag_id] = (v, w)
+        self.velocity_updated_at[tag_id] = now
 
     def retrieve_velocity(self):
         """Display velocity for a specific tag using current velocity data"""
@@ -924,6 +928,10 @@ class DashboardPage(BasePage):
         velocity_text += f"Speed: {np.linalg.norm(v):.3f} m/s"
         
         self.current_tool.configure(text=velocity_text)
+
+    def _stop_velocity_follow(self):
+        self.selected_velocity_tag = None
+        self.current_tool.configure(text="Velocity tracking cleared.")
 
     # MAIN DASHBOARD FUNCTIONS
     
@@ -1001,8 +1009,6 @@ class DashboardPage(BasePage):
                                 0.5, 
                                 (255, 100, 0), 
                                 2)
-                    
-                current_seen.add(int(tag.tag_id))
 
             self.visible_ids = current_seen
 
@@ -1017,6 +1023,11 @@ class DashboardPage(BasePage):
 
             # Update label image
             self.camera_label.configure(image=self.imgtk)
+
+        tid = self.selected_velocity_tag
+        if tid is not None and tid in self.current_velocities:
+            v, w = self.current_velocities[tid]
+            self._display_velocity_data(tid, v, w)
 
         # Schedule next frame update ~60 FPS
         self.camera_label.after(15, self.update_video)
