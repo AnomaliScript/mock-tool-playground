@@ -817,7 +817,8 @@ class DashboardPage(BasePage):
 
         # Create button to check velocity
         ctk.CTkButton(parent, text="Check Velocity", command=lambda: self.retrieve_velocity()).pack(anchor="w", pady=(0, 12))
-sa
+        ctk.CTkButton(parent, text="Stop Tracking", command=lambda: self._stop_velocity_follow()).pack(anchor="w", pady=(0, 12))
+
     # Velocity Calculation (ahhh trig)
     def rvec_to_R(self, rvec):
         R, _ = cv2.Rodrigues(rvec)
