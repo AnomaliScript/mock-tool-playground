@@ -6,6 +6,7 @@ import threading
 from pupil_apriltags import Detector
 from collections import defaultdict, deque
 import time
+import math
 import classes
 import helpers
 
@@ -58,6 +59,7 @@ class PreparationPage(BasePage):
 
         # tool defaults
         self.controller.shared_data.setdefault("storage", 6)
+        self.controller.shared_data.setdefault("velocity_stale_after", 15)
         self.controller.shared_data.setdefault("tool_map", {})
         self.controller.shared_data.setdefault("center", "")
         # position map (AprilTag: position)
@@ -78,9 +80,9 @@ class PreparationPage(BasePage):
         # left.grid_rowconfigure(4, weight=0)   # Feedback
         # left.grid_rowconfigure(5, weight=0)   # Login
 
-        # ========= row 0: Storage Limit =========
+        # ========= row 0 col 0: Storage Limit =========
         storage = ctk.CTkFrame(left)
-        storage.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
+        storage.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
         for c in range(3): storage.grid_columnconfigure(c, weight=1)
 
         ctk.CTkLabel(storage, text="Storage Limit", font=("TkDefaultFont", 14, "bold")).grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=(6,4))
@@ -97,6 +99,26 @@ class PreparationPage(BasePage):
         self.hold_num.grid(row=1, column=2, sticky="ew", padx=6)
 
         ctk.CTkButton(storage, text="Submit", command=self.submit_storage).grid(row=2, column=2, sticky="ew", padx=6, pady=(6,0))
+
+        # ========= row 0 col 1: Checking Velocity Feature Frame Rate =========
+        vsa = ctk.CTkFrame(left)
+        vsa.grid(row=0, column=1, sticky="ew", padx=10, pady=10)
+        for c in range(3): vsa.grid_columnconfigure(c, weight=1)
+
+        ctk.CTkLabel(vsa, text="Checking Velocity Frame Rate", font=("TkDefaultFont", 14, "bold")).grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=(6,4))
+
+        self.vsa_label = ctk.CTkLabel(
+            vsa, text=f"Current value: 60"
+        )
+        self.vsa_label.grid(row=1, column=0, sticky="w", padx=6)
+
+        vsa_question = ctk.CTkLabel(vsa, text="Enter the Velocity Frame Rate")
+        vsa_question.grid(row=1, column=1, sticky="w", padx=6)
+
+        self.fps = ctk.CTkEntry(vsa, placeholder_text="ex: 60")
+        self.fps.grid(row=1, column=2, sticky="ew", padx=6)
+
+        ctk.CTkButton(vsa, text="Submit", command=self.submit_vsa).grid(row=2, column=2, sticky="ew", padx=6, pady=(6,0))
 
         # ========= row 1-2 col 0: List of Tools =========
         tools_list = ctk.CTkFrame(left)
@@ -127,7 +149,6 @@ class PreparationPage(BasePage):
         ctk.CTkLabel(add_tool, text="AprilTag ID (optional)").grid(row=3, column=0, sticky="w", padx=6)
         self.new_tool_id = ctk.CTkEntry(add_tool, placeholder_text="12")
         self.new_tool_id.grid(row=4, column=0, sticky="ew", padx=6, pady=(0,8))
-
 
         ctk.CTkLabel(add_tool, text="Position ID (optional)").grid(row=5, column=0, sticky="w", padx=6)
         self.new_pos_id = ctk.CTkEntry(add_tool, placeholder_text="1")
@@ -193,7 +214,14 @@ class PreparationPage(BasePage):
         self.camera_label = ctk.CTkLabel(right, text="")
         self.camera_label.pack(pady=10, expand=True)
 
-        self.detector = Detector(families="tag25h9")
+        self.detector = Detector(
+                                    families="tag25h9",
+                                    nthreads=4,            # bump to 4 if available
+                                    quad_decimate=2.0,     # 1.0 (quality) → 1.5/2.0 (speed)
+                                    quad_sigma=0.0,
+                                    refine_edges=False,
+                                    decode_sharpening=0.25
+                                )
 
         # initial render of the list
         self._render_tool_list()
@@ -261,6 +289,17 @@ class PreparationPage(BasePage):
         else:
             self._display_feedback("Enter a whole number for storage limit.", ok=False)
         self.hold_num.delete(0, "end")
+
+    def submit_vsa(self):
+        val = (self.fps.get() or "").strip()
+        if val.isdigit():
+            vsa = math.ceil(1000 / int(val))
+            self.controller.shared_data["velocity_stale_after"] = vsa
+            self.vsa_label.configure(text=f"Current value: {int(val)}")
+            self._display_feedback("Velocity Frame Rate updated.")
+        else:
+            self._display_feedback("Enter a whole number for Velocity Frame Rate.", ok=False)
+        self.fps.delete(0, "end")
 
     def submit_additional_tool(self):
         name = (self.new_tool.get() or "").strip()
@@ -354,9 +393,7 @@ class PreparationPage(BasePage):
             return
 
         self._render_tool_list()
-
         self.remove_tool.delete(0, "end")
-
         self.feedback.configure(text=f"Removed '{removed_name}' (ID {tool_id})", text_color="#66FF66")
 
     def submit_pos_ids(self, april_id):
@@ -535,7 +572,14 @@ class DashboardPage(BasePage):
                     storage_limit=self.controller.shared_data["storage"]
                     )
         
-        self.detector = Detector(families="tag25h9")
+        self.detector = Detector(
+                                    families="tag25h9",
+                                    nthreads=4,            # bump to 4 if available
+                                    quad_decimate=2.0,     # 1.0 (quality) → 1.5/2.0 (speed)
+                                    quad_sigma=0.0,
+                                    refine_edges=False,
+                                    decode_sharpening=0.25
+                                )
         
         # Initialize tag history for velocity calculations
         self.tag_hist = defaultdict(lambda: deque(maxlen=10))
@@ -544,7 +588,6 @@ class DashboardPage(BasePage):
         self.current_velocities = {}
         self.selected_velocity_tag = None          # which tag’s velocity to show live
         self.velocity_updated_at = {}              # tid -> last v,w update time (seconds)
-        self.velocity_stale_after = 0.30
         
         # UI: Cutting up the screen (dimensioning)
         for i in range(14):
@@ -816,7 +859,7 @@ class DashboardPage(BasePage):
             self.velocity_tag_id.pack(anchor="w", pady=(0, 12))
 
         # Create button to check velocity
-        ctk.CTkButton(parent, text="Check Velocity", command=lambda: self.retrieve_velocity()).pack(anchor="w", pady=(0, 12))
+        ctk.CTkButton(parent, text="Check Velocity", command=lambda: self.retrieve_velocity(reiteration=False)).pack(anchor="w", pady=(0, 12))
         ctk.CTkButton(parent, text="Stop Tracking", command=lambda: self._stop_velocity_follow()).pack(anchor="w", pady=(0, 12))
 
     # Velocity Calculation (ahhh trig)
@@ -871,44 +914,56 @@ class DashboardPage(BasePage):
         self.current_velocities[tag_id] = (v, w)
         self.velocity_updated_at[tag_id] = now
 
-    def retrieve_velocity(self):
-        """Display velocity for a specific tag using current velocity data"""
-        tag_id_input = self.velocity_tag_id.get().strip()
-        
-        # Checking for silly goober IDs
-        if not tag_id_input:
-            self.current_tool.configure(text="Please enter a tag ID")
-            return
-            
-        try:
-            tag_id = int(tag_id_input)
-        except ValueError:
-            self.current_tool.configure(text="Tag ID must be a number")
-            return
-        
-        # Check if tag exists in tool map
-        tm = helpers.get_tmap(self.controller)
-        if tag_id not in tm:
-            self.current_tool.configure(text=f"Tag ID {tag_id} not found in tool map")
-            return
-        
-        # Check if tag is currently visible on screen
-        if tag_id not in self.visible_ids:
-            tool_name = tm[tag_id]
-            self.current_tool.configure(text=f"{tool_name} (ID: {tag_id})\nTag not currently visible on screen")
-            return
-        
-        # Check if we have current velocity data for this tag
-        if tag_id not in self.current_velocities:
-            tool_name = tm[tag_id]
-            self.current_tool.configure(text=f"{tool_name} (ID: {tag_id})\nNo velocity data available yet")
-            return
-        
-        # Get current velocity data and display it
-        v, w = self.current_velocities[tag_id]
-        self._display_velocity_data(tag_id, v, w)
+    def retrieve_velocity(self, reiteration):
+        # Display velocity for a specific tag using current velocity data
 
-    def _display_velocity_data(self, tag_id: int, v: np.ndarray, w: np.ndarray):
+        # The "I don't like this game anymore!" case (or could just be a blank entry lmao)
+        if reiteration and self.selected_velocity_tag is None:
+            return
+
+        if not reiteration:
+            tag_id_input = self.velocity_tag_id.get().strip()
+            
+            # Checking for silly goober IDs
+            if not tag_id_input:
+                self.current_tool.configure(text="Please enter a tag ID")
+                return
+                
+            try:
+                tag_id = int(tag_id_input)
+            except ValueError:
+                self.current_tool.configure(text="Tag ID must be a number")
+                return
+            
+            # Check if tag exists in tool map
+            tm = helpers.get_tmap(self.controller)
+            if tag_id not in tm:
+                self.current_tool.configure(text=f"Tag ID {tag_id} not found in tool map")
+                return
+        
+            # Check if tag is currently visible on screen
+            if tag_id not in self.visible_ids:
+                tool_name = tm[tag_id]
+                self.current_tool.configure(text=f"{tool_name} (ID: {tag_id})\nTag not currently visible on screen")
+                return
+            
+            # Check if we have current velocity data for this tag
+            if tag_id not in self.current_velocities:
+                tool_name = tm[tag_id]
+                self.current_tool.configure(text=f"{tool_name} (ID: {tag_id})\nNo velocity data available yet")
+                return
+
+            # Tracking purposes
+            self.selected_velocity_tag = tag_id
+
+        # Get current velocity data and display it
+        v, w = self.current_velocities[self.selected_velocity_tag]
+
+        self.display_velocity_data(self.selected_velocity_tag, v, w)
+        self.current_tool.after(self.controller.shared_data['velocity_stale_after'], lambda: self.retrieve_velocity(True))
+
+
+    def display_velocity_data(self, tag_id: int, v: np.ndarray, w: np.ndarray):
         """Helper method to display formatted velocity data"""
         # Check if tag exists in tool map
         tm = helpers.get_tmap(self.controller)
@@ -1025,11 +1080,6 @@ class DashboardPage(BasePage):
             # Update label image
             self.camera_label.configure(image=self.imgtk)
 
-        tid = self.selected_velocity_tag
-        if tid is not None and tid in self.current_velocities:
-            v, w = self.current_velocities[tid]
-            self._display_velocity_data(tid, v, w)
-
         # Schedule next frame update ~60 FPS
         self.camera_label.after(15, self.update_video)
 
@@ -1059,6 +1109,7 @@ class App(ctk.CTk):
         # show_april_mode (boolean)
         # revisit_settings (boolean)
         # pos
+        # velocity_stale_after (in ms)
 
         # Load page frames into self.container
         self.frames = {}
