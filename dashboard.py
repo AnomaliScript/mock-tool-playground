@@ -9,6 +9,7 @@ import time
 import math
 import classes
 import helpers
+import CONSTANTS
 
 # Load calibration
 data = np.load("camera_calibration.npz")
@@ -59,7 +60,7 @@ class PreparationPage(BasePage):
 
         # tool defaults
         self.controller.shared_data.setdefault("storage", 6)
-        self.controller.shared_data.setdefault("velocity_stale_after", 15)
+        self.controller.shared_data.setdefault("velocity_refresh_rate", 15)
         self.controller.shared_data.setdefault("tool_map", {})
         self.controller.shared_data.setdefault("center", "")
         # position map (AprilTag: position)
@@ -100,25 +101,25 @@ class PreparationPage(BasePage):
 
         ctk.CTkButton(storage, text="Submit", command=self.submit_storage).grid(row=2, column=2, sticky="ew", padx=6, pady=(6,0))
 
-        # ========= row 0 col 1: Checking Velocity Feature Frame Rate =========
-        vsa = ctk.CTkFrame(left)
-        vsa.grid(row=0, column=1, sticky="ew", padx=10, pady=10)
-        for c in range(3): vsa.grid_columnconfigure(c, weight=1)
+        # ========= row 0 col 1: Checking Velocity Refresh Rate =========
+        vrr = ctk.CTkFrame(left)
+        vrr.grid(row=0, column=1, sticky="ew", padx=10, pady=10)
+        for c in range(3): vrr.grid_columnconfigure(c, weight=1)
 
-        ctk.CTkLabel(vsa, text="Checking Velocity Frame Rate", font=("TkDefaultFont", 14, "bold")).grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=(6,4))
+        ctk.CTkLabel(vrr, text="Checking Velocity Frame Rate", font=("TkDefaultFont", 14, "bold")).grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=(6,4))
 
-        self.vsa_label = ctk.CTkLabel(
-            vsa, text=f"Current value: 60"
+        self.vrr_label = ctk.CTkLabel(
+            vrr, text=f"Current value: 60"
         )
-        self.vsa_label.grid(row=1, column=0, sticky="w", padx=6)
+        self.vrr_label.grid(row=1, column=0, sticky="w", padx=6)
 
-        vsa_question = ctk.CTkLabel(vsa, text="Enter the Velocity Frame Rate")
-        vsa_question.grid(row=1, column=1, sticky="w", padx=6)
+        vrr_question = ctk.CTkLabel(vrr, text="Enter the Velocity Frame Rate")
+        vrr_question.grid(row=1, column=1, sticky="w", padx=6)
 
-        self.fps = ctk.CTkEntry(vsa, placeholder_text="ex: 60")
+        self.fps = ctk.CTkEntry(vrr, placeholder_text="ex: 60")
         self.fps.grid(row=1, column=2, sticky="ew", padx=6)
 
-        ctk.CTkButton(vsa, text="Submit", command=self.submit_vsa).grid(row=2, column=2, sticky="ew", padx=6, pady=(6,0))
+        ctk.CTkButton(vrr, text="Submit", command=self.submit_vrr).grid(row=2, column=2, sticky="ew", padx=6, pady=(6,0))
 
         # ========= row 1-2 col 0: List of Tools =========
         tools_list = ctk.CTkFrame(left)
@@ -214,15 +215,6 @@ class PreparationPage(BasePage):
         self.camera_label = ctk.CTkLabel(right, text="")
         self.camera_label.pack(pady=10, expand=True)
 
-        self.detector = Detector(
-                                    families="tag25h9",
-                                    nthreads=4,            # bump to 4 if available
-                                    quad_decimate=2.0,     # 1.0 (quality) → 1.5/2.0 (speed)
-                                    quad_sigma=0.0,
-                                    refine_edges=False,
-                                    decode_sharpening=0.25
-                                )
-
         # initial render of the list
         self._render_tool_list()
 
@@ -290,12 +282,12 @@ class PreparationPage(BasePage):
             self._display_feedback("Enter a whole number for storage limit.", ok=False)
         self.hold_num.delete(0, "end")
 
-    def submit_vsa(self):
+    def submit_vrr(self):
         val = (self.fps.get() or "").strip()
         if val.isdigit():
-            vsa = math.ceil(1000 / int(val))
-            self.controller.shared_data["velocity_stale_after"] = vsa
-            self.vsa_label.configure(text=f"Current value: {int(val)}")
+            vrr = math.ceil(1000 / int(val))
+            self.controller.shared_data["velocity_refresh_rate"] = vrr
+            self.vrr_label.configure(text=f"Current value: {int(val)}")
             self._display_feedback("Velocity Frame Rate updated.")
         else:
             self._display_feedback("Enter a whole number for Velocity Frame Rate.", ok=False)
@@ -496,7 +488,7 @@ class PreparationPage(BasePage):
         ret, frame = cap.read()
         if ret:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            tags = self.detector.detect(gray)
+            tags = CONSTANTS.detector.detect(gray)
 
             for tag in tags:
                 corners = tag.corners.astype(np.float32)
@@ -571,15 +563,6 @@ class DashboardPage(BasePage):
                     available_tools=helpers.get_tmap(self.controller),
                     storage_limit=self.controller.shared_data["storage"]
                     )
-        
-        self.detector = Detector(
-                                    families="tag25h9",
-                                    nthreads=4,            # bump to 4 if available
-                                    quad_decimate=2.0,     # 1.0 (quality) → 1.5/2.0 (speed)
-                                    quad_sigma=0.0,
-                                    refine_edges=False,
-                                    decode_sharpening=0.25
-                                )
         
         # Initialize tag history for velocity calculations
         self.tag_hist = defaultdict(lambda: deque(maxlen=10))
@@ -914,13 +897,22 @@ class DashboardPage(BasePage):
         self.current_velocities[tag_id] = (v, w)
         self.velocity_updated_at[tag_id] = now
 
+    def _seen_within_ms(self, tag_id: int, limit_ms: int) -> bool:
+        ts = self.velocity_updated_at.get(tag_id)   # seconds
+        if ts is None:
+            return False
+        age_ms = (time.time() - ts) * 1000.0        # -> ms
+        # print(f"age_ms: {age_ms}")
+        return age_ms <= float(limit_ms)
+
     def retrieve_velocity(self, reiteration):
         # Display velocity for a specific tag using current velocity data
-
-        # The "I don't like this game anymore!" case (or could just be a blank entry lmao)
+        # Cancel Tracking case
         if reiteration and self.selected_velocity_tag is None:
             return
 
+        tm = helpers.get_tmap(self.controller)
+        # Hard stop (initial check)
         if not reiteration:
             tag_id_input = self.velocity_tag_id.get().strip()
             
@@ -936,35 +928,44 @@ class DashboardPage(BasePage):
                 return
             
             # Check if tag exists in tool map
-            tm = helpers.get_tmap(self.controller)
             if tag_id not in tm:
                 self.current_tool.configure(text=f"Tag ID {tag_id} not found in tool map")
                 return
-        
-            # Check if tag is currently visible on screen
-            if tag_id not in self.visible_ids:
-                tool_name = tm[tag_id]
-                self.current_tool.configure(text=f"{tool_name} (ID: {tag_id})\nTag not currently visible on screen")
-                return
             
+            # Tracking purposes
+            self.selected_velocity_tag = tag_id
+
             # Check if we have current velocity data for this tag
             if tag_id not in self.current_velocities:
                 tool_name = tm[tag_id]
                 self.current_tool.configure(text=f"{tool_name} (ID: {tag_id})\nNo velocity data available yet")
+                self.current_tool.after(self.controller.shared_data['velocity_refresh_rate'], lambda: self.retrieve_velocity(True))
                 return
 
-            # Tracking purposes
-            self.selected_velocity_tag = tag_id
+        # Check if tag is currently visible on screen (and check for coasting)
+        allow_coast = self._seen_within_ms(self.selected_velocity_tag, CONSTANTS.LAST_SEEN_LIMIT)
+        if (self.selected_velocity_tag not in self.visible_ids) and (not allow_coast):
+            tool_name = tm[self.selected_velocity_tag]
+            self.current_tool.configure(
+                text=f"{tool_name} (ID: {self.selected_velocity_tag})\nTag not visible recently (> {CONSTANTS.LAST_SEEN_LIMIT} ms)"
+            )
+            self.current_tool.after(self.controller.shared_data['velocity_refresh_rate'], lambda: self.retrieve_velocity(True))
+            return
+        # Freeze the current velocity (assumption) until camera picks up on it again
+        elif (self.selected_velocity_tag not in self.visible_ids) and allow_coast:
+            self.display_velocity_data(self.selected_velocity_tag, self.past_v, self.past_w)
+            self.current_tool.after(self.controller.shared_data['velocity_refresh_rate'], lambda: self.retrieve_velocity(True))
+            return
 
         # Get current velocity data and display it
         v, w = self.current_velocities[self.selected_velocity_tag]
+        self.past_v, self.past_w = v, w
 
         self.display_velocity_data(self.selected_velocity_tag, v, w)
-        self.current_tool.after(self.controller.shared_data['velocity_stale_after'], lambda: self.retrieve_velocity(True))
+        self.current_tool.after(self.controller.shared_data['velocity_refresh_rate'], lambda: self.retrieve_velocity(True))
 
 
     def display_velocity_data(self, tag_id: int, v: np.ndarray, w: np.ndarray):
-        """Helper method to display formatted velocity data"""
         # Check if tag exists in tool map
         tm = helpers.get_tmap(self.controller)
         if tag_id not in tm:
@@ -1011,7 +1012,7 @@ class DashboardPage(BasePage):
         if ret:
             # Convert BGR to RGB
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            tags = self.detector.detect(gray)
+            tags = CONSTANTS.detector.detect(gray)
 
             # Keep track of seen tags
             current_seen = set()
@@ -1109,7 +1110,7 @@ class App(ctk.CTk):
         # show_april_mode (boolean)
         # revisit_settings (boolean)
         # pos
-        # velocity_stale_after (in ms)
+        # velocity_refresh_rate (in ms)
 
         # Load page frames into self.container
         self.frames = {}
