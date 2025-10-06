@@ -3,7 +3,6 @@ import cv2
 import numpy as np
 from PIL import Image
 import threading
-from pupil_apriltags import Detector
 from collections import defaultdict, deque
 import time
 import math
@@ -62,7 +61,7 @@ class PreparationPage(BasePage):
         self.controller.shared_data.setdefault("storage", 6)
         self.controller.shared_data.setdefault("velocity_refresh_rate", 15)
         self.controller.shared_data.setdefault("tool_map", {})
-        self.controller.shared_data.setdefault("center", "")
+        self.controller.shared_data.setdefault("exposure", "")
         # position map (AprilTag: position)
         self.controller.shared_data.setdefault("pos", {})
 
@@ -76,7 +75,7 @@ class PreparationPage(BasePage):
         left.grid_columnconfigure(1, weight=1)
         # left.grid_rowconfigure(0, weight=0)   # storage
         left.grid_rowconfigure(1, weight=1)   # Middle row expands (list/add)
-        # left.grid_rowconfigure(2, weight=0)   # Center ID
+        # left.grid_rowconfigure(2, weight=0)   # Exposure
         # left.grid_rowconfigure(3, weight=0)   # Position IDs
         # left.grid_rowconfigure(4, weight=0)   # Feedback
         # left.grid_rowconfigure(5, weight=0)   # Login
@@ -179,22 +178,22 @@ class PreparationPage(BasePage):
         self.remove_tool.bind("<Return>", lambda _e: self.remove_tool())
         self.remove_tool.bind("<Return>", lambda _e: self.remove_tool())
 
-        # ========= row 3: Center ID =========
-        center = ctk.CTkFrame(left)
-        center.grid(row=3, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
-        for c in range(3): center.grid_columnconfigure(c, weight=1) # 3 spots
+        # ========= row 3: Exposure =========
+        exposure = ctk.CTkFrame(left)
+        exposure.grid(row=3, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
+        for c in range(3): exposure.grid_columnconfigure(c, weight=1) # 3 spots
 
-        center_tag = ctk.CTkLabel(center, text="Center Tag", font=("TkDefaultFont", 14, "bold"))
-        center_tag.grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=(6,4))
+        exposure_label = ctk.CTkLabel(exposure, text="Exposure", font=("TkDefaultFont", 14, "bold"))
+        exposure_label.grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=(6,4))
 
-        self.center_label = ctk.CTkLabel(center, text=f"Current Center AprilTag ID: {self.controller.shared_data['center']}")
-        self.center_label.grid(row=1, column=0, sticky="w", padx=6)
+        self.exposure_label = ctk.CTkLabel(exposure, text=f"Current Exposure: {self.controller.shared_data['exposure']}")
+        self.exposure_label.grid(row=1, column=0, sticky="w", padx=6)
 
-        self.center = ctk.CTkEntry(center, placeholder_text="ex: 0")
-        self.center.grid(row=1, column=1, sticky="ew", padx=6)
+        self.exposure = ctk.CTkEntry(exposure, placeholder_text="ex: 0")
+        self.exposure.grid(row=1, column=1, sticky="ew", padx=6)
 
-        submit_center_id = ctk.CTkButton(center, text="Submit Center ID", command=self.submit_center)
-        submit_center_id.grid(row=1, column=2, sticky="ew", padx=6)
+        submit_exposure_id = ctk.CTkButton(exposure, text="Submit Exposure", command=self.submit_exposure)
+        submit_exposure_id.grid(row=1, column=2, sticky="ew", padx=6)
 
         # ========= row 4: Feedback =========
         self.feedback = ctk.CTkLabel(left, text="", text_color="#FFCC66")
@@ -205,8 +204,9 @@ class PreparationPage(BasePage):
         login.grid(row=5, column=0, sticky="ew", padx=10, pady=(0,10))
 
         # ========= row 5 col 1: Switch from April mode to Position mode (IDs) =========
+        mode_str = "Position" if self.controller.shared_data["show_april_mode"] else "April"
         self.switch = ctk.CTkButton(left, 
-                               text=f"Switch to {"April" if self.controller.shared_data["show_april_mode"] else "Position"} mode", 
+                               text=f"Switch to {mode_str} mode", 
                                command=self.switch)
         self.switch.grid(row=5, column=1, sticky="ew", padx=10, pady=(0,10))
 
@@ -437,43 +437,41 @@ class PreparationPage(BasePage):
         # success feedback
         self.feedback.configure(text=f"Added AprilTag ID {april_id} as ID {pos_id}", text_color="#66FF66")
 
-    def submit_center(self):
-        value = self.center.get().strip()
+    def submit_exposure(self):
+        value = self.exposure.get().strip()
 
         # basic validation
         if not value:
-            self.feedback.configure(text="Center ID cannot be empty", text_color="#FF6666")
+            self.feedback.configure(text="Exposure cannot be empty", text_color="#FF6666")
             return
 
         try:
-            center_id = int(value)
+            exposure_id = int(value)
         except ValueError:
-            self.feedback.configure(text="Center ID must be a number", text_color="#FF6666")
+            self.feedback.configure(text="Exposure must be a number", text_color="#FF6666")
             return
 
-        # check if the proposed center_id is already set to a tool
-        tm = helpers.get_tmap(self.controller)
-        if center_id in tm:
-            self.feedback.configure(text=f"ID {center_id} is already in use", text_color="#FF6666")
-            return
+        # Change cap object
+        cap.set(cv2.CAP_PROP_EXPOSURE, float(exposure_id))
 
         # update shared data
-        self.controller.shared_data["center"] = center_id
+        self.controller.shared_data["exposure"] = exposure_id
 
         # update label display
-        self.center_label.configure(text=f"Current Center AprilTag ID: {center_id}")
+        self.exposure_label.configure(text=f"Current Exposure: {exposure_id}")
 
         # clear entry
-        self.center.delete(0, "end")
+        self.exposure.delete(0, "end")
 
-        self.feedback.configure(text=f"Center ID set to {center_id}", text_color="#66FF66")
+        self.feedback.configure(text=f"Exposure set to {exposure_id}", text_color="#66FF66")
 
     def switch(self):
         if self.controller.shared_data["show_april_mode"]:
             self.controller.shared_data["show_april_mode"] = False
         else: 
             self.controller.shared_data["show_april_mode"] = True
-        self.switch.configure(text=f"Switch to {"Position" if self.controller.shared_data["show_april_mode"] else "April"} mode")
+        mode_str = "Position" if self.controller.shared_data["show_april_mode"] else "April"
+        self.switch.configure(text=f"Switch to {mode_str} mode")
 
     # Called whenever this page is shown, which works well for displaying the camera
     def tkraise(self, aboveThis=None):
@@ -512,18 +510,13 @@ class PreparationPage(BasePage):
                     tool_name = tm.get(tag.tag_id, f"Unknown Tool {tag.tag_id}") # Unknown/Unmapped IDs will naturally be April IDs
                     id_display = tag.tag_id
 
-                    # Checking if the ID is Center (important)
-                    if (id_display == self.controller.shared_data["center"]):
-                        helping_text = "Center"
-                        tool_name = ""
+                    # Checking if the April Mode is on
+                    if self.controller.shared_data["show_april_mode"]:
+                        helping_text = "April_ID"
                     else:
-                        # Checking if the April Mode is on
-                        if self.controller.shared_data["show_april_mode"]:
-                            helping_text = "April_ID"
-                        else:
-                            helping_text = "Position_ID"
-                            pm = helpers.get_pmap(self.controller)
-                            id_display = pm.get(tag.tag_id, "N/A")
+                        helping_text = "Position_ID"
+                        pm = helpers.get_pmap(self.controller)
+                        id_display = pm.get(tag.tag_id, "N/A")
 
                     cv2.putText(frame, 
                                 f"{tool_name} ({helping_text}: {id_display}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
@@ -733,7 +726,7 @@ class DashboardPage(BasePage):
         tm = helpers.get_tmap(self.controller)
         ids = sorted(self.visible_ids)
 
-        title = ctk.CTkLabel(parent, text="Seen Tags (this session):", anchor="w", justify="center")
+        title = ctk.CTkLabel(parent, text="Seen Tags (this session):", anchor="w", justify="exposure")
         title.pack(anchor="w", pady=(0, 6))
 
         if not ids:
@@ -746,7 +739,7 @@ class DashboardPage(BasePage):
     # Attaching, Part 1
     def attach(self, parent):
         
-        title = ctk.CTkLabel(parent, text="Attach Tool", anchor="w", justify="center")
+        title = ctk.CTkLabel(parent, text="Attach Tool", anchor="w", justify="exposure")
         title.pack(anchor="w", pady=(0, 6))
 
         # April Case
@@ -759,7 +752,7 @@ class DashboardPage(BasePage):
             self.id2b_attached.pack(anchor="w", pady=(0, 12))
 
         # Creating a label that attach_operation can refer to
-        self.attach_feedback = ctk.CTkLabel(parent, text="", anchor="w", justify="center")
+        self.attach_feedback = ctk.CTkLabel(parent, text="", anchor="w", justify="exposure")
         self.attach_feedback.pack(anchor="w", pady=(0, 6))
 
         ctk.CTkButton(parent, text="Attach", command=lambda: self.attach_operation()).pack(anchor="w", pady=(0, 12))
@@ -806,7 +799,7 @@ class DashboardPage(BasePage):
                 "april_id" : converted_id,
                 "name": tm.get(converted_id)
             }
-            self.attach_feedback.configure(text=f"ID {self.adapter.attached["name"]} attached", text_color="#66FF66")
+            self.attach_feedback.configure(text=f"ID {self.adapter.attached['name']} attached", text_color="#66FF66")
         # Position Case
         else: 
             april_id_version = helpers.position_to_april(self.controller, converted_id)
@@ -815,7 +808,7 @@ class DashboardPage(BasePage):
                 "april_id" : april_id_version,
                 "name": tm.get(april_id_version)
             }
-            self.attach_feedback.configure(text=f"ID {self.adapter.attached["name"]} attached", text_color="#66FF66")
+            self.attach_feedback.configure(text=f"ID {self.adapter.attached['name']} attached", text_color="#66FF66")
 
         print(f"{self.adapter.attached}")
 
@@ -830,7 +823,7 @@ class DashboardPage(BasePage):
 
     # Velocity Evaluation
     def check_velocity(self, parent):
-        title = ctk.CTkLabel(parent, text="Check Velocity", anchor="w", justify="center")
+        title = ctk.CTkLabel(parent, text="Check Velocity", anchor="w", justify="exposure")
         title.pack(anchor="w", pady=(0, 6))
 
         # Create input field for tag ID
@@ -1046,18 +1039,13 @@ class DashboardPage(BasePage):
                     tool_name = tm.get(tag.tag_id, f"Unknown Tool {tag.tag_id}") # Unknown/Unmapped IDs will naturally be April IDs
                     id_display = tag.tag_id
 
-                    # Checking if the ID is Center (important)
-                    if (id_display == self.controller.shared_data["center"]):
-                        helping_text = "Center"
-                        tool_name = ""
+                    # Checking if the April Mode is on
+                    if self.controller.shared_data["show_april_mode"]:
+                        helping_text = "April_ID"
                     else:
-                        # Checking if the April Mode is on
-                        if self.controller.shared_data["show_april_mode"]:
-                            helping_text = "April_ID"
-                        else:
-                            helping_text = "Position_ID"
-                            pm = helpers.get_pmap(self.controller)
-                            id_display = pm.get(tag.tag_id, "N/A")
+                        helping_text = "Position_ID"
+                        pm = helpers.get_pmap(self.controller)
+                        id_display = pm.get(tag.tag_id, "N/A")
 
                     cv2.putText(frame, 
                                 f"{tool_name} ({helping_text}: {id_display}) pos: x={tvec[0][0]:.3f}, y={tvec[1][0]:.3f}, z={tvec[2][0]:.3f}",
@@ -1106,7 +1094,7 @@ class App(ctk.CTk):
         self.shared_data = {}
         # storage
         # tool_map
-        # center
+        # exposure
         # show_april_mode (boolean)
         # revisit_settings (boolean)
         # pos
