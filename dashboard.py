@@ -183,7 +183,7 @@ class PreparationPage(BasePage):
         exposure.grid(row=3, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
         for c in range(3): exposure.grid_columnconfigure(c, weight=1) # 3 spots
 
-        exposure_label = ctk.CTkLabel(exposure, text="Exposure", font=("TkDefaultFont", 14, "bold"))
+        exposure_label = ctk.CTkLabel(exposure, text="Exposure (percentage)", font=("TkDefaultFont", 14, "bold"))
         exposure_label.grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=(6,4))
 
         self.exposure_label = ctk.CTkLabel(exposure, text=f"Current Exposure: {self.controller.shared_data['exposure']}")
@@ -192,8 +192,8 @@ class PreparationPage(BasePage):
         self.exposure = ctk.CTkEntry(exposure, placeholder_text="ex: 0")
         self.exposure.grid(row=1, column=1, sticky="ew", padx=6)
 
-        submit_exposure_id = ctk.CTkButton(exposure, text="Submit Exposure", command=self.submit_exposure)
-        submit_exposure_id.grid(row=1, column=2, sticky="ew", padx=6)
+        submit_exposure = ctk.CTkButton(exposure, text="Submit Exposure", command=self.submit_exposure)
+        submit_exposure.grid(row=1, column=2, sticky="ew", padx=6)
 
         # ========= row 4: Feedback =========
         self.feedback = ctk.CTkLabel(left, text="", text_color="#FFCC66")
@@ -446,24 +446,29 @@ class PreparationPage(BasePage):
             return
 
         try:
-            exposure_id = int(value)
+            if (int(value) > 100) or (int(value) < 0):
+                self.feedback.configure(text="Exposure must be a number 1-100", text_color="#FF6666")
+                return
+            exposure_percent = int(value)
         except ValueError:
             self.feedback.configure(text="Exposure must be a number", text_color="#FF6666")
             return
+        
+        exposure = -16 + (exposure_percent * 0.16)
 
         # Change cap object
-        cap.set(cv2.CAP_PROP_EXPOSURE, float(exposure_id))
+        cap.set(cv2.CAP_PROP_EXPOSURE, float(exposure))
 
         # update shared data
-        self.controller.shared_data["exposure"] = exposure_id
+        self.controller.shared_data["exposure"] = exposure
 
         # update label display
-        self.exposure_label.configure(text=f"Current Exposure: {exposure_id}")
+        self.exposure_label.configure(text=f"Current Exposure: {str(round(exposure, 2))}")
 
         # clear entry
         self.exposure.delete(0, "end")
 
-        self.feedback.configure(text=f"Exposure set to {exposure_id}", text_color="#66FF66")
+        self.feedback.configure(text=f"Exposure set to {str(round(exposure, 2))}", text_color="#66FF66")
 
     def switch(self):
         if self.controller.shared_data["show_april_mode"]:
@@ -576,10 +581,10 @@ class DashboardPage(BasePage):
         rows = 6
 
         colors = [
-            "#FFBC9A", "#FF9D6C", "#F9785C", "#C94F64",
-            "#5A4C7A", "#3A3F66", "#222C4C", "#101B32",
-            "#1C2D50", "#3A4D6C", "#637DA1", "#8DAFD1",
-            "#D4D8E2", "#FFF2BF"
+            "#000000", "#121212", "#242424", "#363636", 
+            "#484848", "#5A5A5A", "#6C6C6C", "#7E7E7E", 
+            "#909090", "#A2A2A2", "#B4B4B4", "#C6C6C6", 
+            "#D8D8D8", "#FFFFFF"
         ]
 
         # Configure the full grid
@@ -602,7 +607,7 @@ class DashboardPage(BasePage):
 
         # Text Widgets (6x6 tiles covered up)
         # adapter_obj Dynamic CTk Frame; API functions that use this CTkFrame are defined further below
-        self.panel = ctk.CTkFrame(self, fg_color="#FFBC9A")  # same color as before
+        self.panel = ctk.CTkFrame(self, fg_color="#6A2300")  # same color as before
         self.panel.grid(row=0, column=8, rowspan=2, columnspan=2, sticky="nsew", padx=10, pady=10)
 
         # optional: a title in the panel
@@ -726,7 +731,7 @@ class DashboardPage(BasePage):
         tm = helpers.get_tmap(self.controller)
         ids = sorted(self.visible_ids)
 
-        title = ctk.CTkLabel(parent, text="Seen Tags (this session):", anchor="w", justify="exposure")
+        title = ctk.CTkLabel(parent, text="Seen Tags (this session):", anchor="w", justify="center")
         title.pack(anchor="w", pady=(0, 6))
 
         if not ids:
@@ -739,7 +744,7 @@ class DashboardPage(BasePage):
     # Attaching, Part 1
     def attach(self, parent):
         
-        title = ctk.CTkLabel(parent, text="Attach Tool", anchor="w", justify="exposure")
+        title = ctk.CTkLabel(parent, text="Attach Tool", anchor="w", justify="center")
         title.pack(anchor="w", pady=(0, 6))
 
         # April Case
@@ -752,7 +757,7 @@ class DashboardPage(BasePage):
             self.id2b_attached.pack(anchor="w", pady=(0, 12))
 
         # Creating a label that attach_operation can refer to
-        self.attach_feedback = ctk.CTkLabel(parent, text="", anchor="w", justify="exposure")
+        self.attach_feedback = ctk.CTkLabel(parent, text="", anchor="w", justify="center")
         self.attach_feedback.pack(anchor="w", pady=(0, 6))
 
         ctk.CTkButton(parent, text="Attach", command=lambda: self.attach_operation()).pack(anchor="w", pady=(0, 12))
@@ -764,17 +769,17 @@ class DashboardPage(BasePage):
 
         # Checking if ID alr exsits
         if "name" in self.adapter.attached and self.adapter.attached["name"]:
-            self.attach_feedback.configure(text="A tool is already attached", text_color="#FF6666")
+            self.attach_feedback.configure(text="A tool is already attached", text_color="#5C5C5C")
             return
         # Checking if ID is an integer
         if id:
             try:
                 converted_id = int(id)
             except ValueError:
-                self.attach_feedback.configure(text="ID must be a number", text_color="#FF6666")
+                self.attach_feedback.configure(text="ID must be a number", text_color="#5C5C5C")
                 return
         else:
-            self.attach_feedback.configure(text="Please type in a number", text_color="#FF6666")
+            self.attach_feedback.configure(text="Please type in a number", text_color="#5C5C5C")
             return
         
         # TROUBLESHOOTING
@@ -789,7 +794,7 @@ class DashboardPage(BasePage):
         # Checking if the ID is mapped to a tool (April and Positoin cases, respectively)
         if ((self.controller.shared_data["show_april_mode"] and (tm.get(converted_id, None) == None)) or 
             (self.controller.shared_data["show_april_mode"] == False) and (helpers.position_to_april(self.controller, converted_id) == None)):
-            self.attach_feedback.configure(text="Invalid ID", text_color="#FF6666")
+            self.attach_feedback.configure(text="Invalid ID", text_color="#5C5C5C")
             return
         
         # April Case
@@ -815,7 +820,7 @@ class DashboardPage(BasePage):
     def detach_tool(self, parent):
         # Delete
         print(f"{self.adapter.attached}")
-        ctk.CTkButton(parent, text="Attach", command=self.detach_operation()).pack(anchor="w", pady=(0, 12))
+        ctk.CTkButton(parent, text="Detach", command=self.detach_operation()).pack(anchor="w", pady=(0, 12))
 
     def detach_operation(self):
         # TODO: employ motors and sensors to detach the tool
@@ -823,7 +828,7 @@ class DashboardPage(BasePage):
 
     # Velocity Evaluation
     def check_velocity(self, parent):
-        title = ctk.CTkLabel(parent, text="Check Velocity", anchor="w", justify="exposure")
+        title = ctk.CTkLabel(parent, text="Check Velocity", anchor="w", justify="center")
         title.pack(anchor="w", pady=(0, 6))
 
         # Create input field for tag ID
